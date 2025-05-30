@@ -4,6 +4,12 @@ class EmojiDataPasta {
         this.originalData = [];
         this.fieldSchema = {};
         this.selectedFields = new Set();
+        this.filteredEmojis = [];
+        this.currentEmojiIndex = 0;
+        this.currentVariant = 'default';
+        this.expandedFields = new Set();
+        this.fieldDescriptions = this.getFieldDescriptions();
+        this.presets = this.getFieldPresets();
         this.settings = {
             includeEmptyFields: true,
             prettifyJson: true,
@@ -16,6 +22,67 @@ class EmojiDataPasta {
         this.loadDefaultData();
     }
 
+    getFieldDescriptions() {
+        return {
+            'name': 'The descriptive name of the emoji (e.g., "Grinning Face")',
+            'unified': 'Unicode codepoint(s) in unified format (e.g., "1F600")',
+            'non_qualified': 'Non-qualified unicode representation',
+            'docomo': 'DoCoMo carrier-specific encoding',
+            'au': 'AU carrier-specific encoding',
+            'softbank': 'SoftBank carrier-specific encoding',
+            'google': 'Google-specific encoding',
+            'image': 'Filename for the emoji image',
+            'sheet_x': 'X coordinate on the sprite sheet',
+            'sheet_y': 'Y coordinate on the sprite sheet',
+            'short_name': 'Primary short name/code for the emoji (e.g., "grinning")',
+            'short_names': 'Array of all possible short names/codes',
+            'text': 'Text representation if available',
+            'texts': 'Array of text representations',
+            'category': 'Main category (e.g., "Smileys & Emotion")',
+            'subcategory': 'Specific subcategory within the main category',
+            'sort_order': 'Numerical order for sorting emojis',
+            'added_in': 'Unicode version when this emoji was added (e.g., "6.0")',
+            'has_img_apple': 'Whether Apple has an image for this emoji',
+            'has_img_google': 'Whether Google has an image for this emoji',
+            'has_img_twitter': 'Whether Twitter has an image for this emoji',
+            'has_img_facebook': 'Whether Facebook has an image for this emoji',
+            'skin_variations': 'Object containing skin tone variations',
+            'obsoleted_by': 'Unicode that replaces this emoji if obsoleted',
+            'obsoletes': 'Unicode that this emoji replaces',
+            'unicode': 'The actual Unicode character(s)',
+            // Sub-field descriptions
+            'skin_variations.unified': 'Unicode for this skin tone variant',
+            'skin_variations.image': 'Image filename for this skin tone variant',
+            'skin_variations.sheet_x': 'X coordinate for this skin tone variant',
+            'skin_variations.sheet_y': 'Y coordinate for this skin tone variant',
+            'skin_variations.added_in': 'Unicode version when this variant was added',
+            'skin_variations.has_img_apple': 'Whether Apple has image for this variant',
+            'skin_variations.has_img_google': 'Whether Google has image for this variant',
+            'skin_variations.has_img_twitter': 'Whether Twitter has image for this variant',
+            'skin_variations.has_img_facebook': 'Whether Facebook has image for this variant'
+        };
+    }
+
+    getFieldPresets() {
+        return {
+            'minimal': {
+                name: 'Minimal',
+                description: 'Essential fields for basic emoji data',
+                fields: ['unified', 'category', 'name', 'short_name', 'short_names', 'skin_variations', 'sort_order', 'subcategory']
+            },
+            'essential': {
+                name: 'Essential',
+                description: 'Core fields including image and platform support',
+                fields: ['unified', 'category', 'name', 'short_name', 'short_names', 'skin_variations', 'sort_order', 'subcategory', 'has_img_apple', 'has_img_google', 'has_img_twitter', 'has_img_facebook', 'image', 'sheet_x', 'sheet_y']
+            },
+            'complete': {
+                name: 'Complete',
+                description: 'All available fields',
+                fields: [] // Will be populated with all available fields
+            }
+        };
+    }
+
     initializeEventListeners() {
         // File operations
         document.getElementById('loadFile').addEventListener('click', () => this.loadFile());
@@ -26,6 +93,19 @@ class EmojiDataPasta {
         document.getElementById('selectAll').addEventListener('click', () => this.selectAllFields());
         document.getElementById('selectNone').addEventListener('click', () => this.selectNoFields());
         document.getElementById('applyChanges').addEventListener('click', () => this.applyChanges());
+        document.getElementById('fieldPresets').addEventListener('change', (e) => this.applyPreset(e.target.value));
+
+        // Emoji navigation
+        document.getElementById('emojiIcon').addEventListener('click', () => this.nextEmoji());
+        document.getElementById('prevEmoji').addEventListener('click', () => this.prevEmoji());
+        document.getElementById('nextEmoji').addEventListener('click', () => this.nextEmoji());
+        document.getElementById('randomEmoji').addEventListener('click', () => this.randomEmoji());
+        document.getElementById('cycleVariant').addEventListener('click', () => this.cycleVariant());
+
+        // Emoji browser
+        document.getElementById('toggleEmojiTable').addEventListener('click', () => this.showEmojiBrowser());
+        document.getElementById('closeEmojiBrowser').addEventListener('click', () => this.hideEmojiBrowser());
+        document.getElementById('emojiSearch').addEventListener('input', (e) => this.searchEmojis(e.target.value));
 
         // Settings panel
         document.getElementById('closeSettings').addEventListener('click', () => this.hideSettingsPanel());
@@ -47,6 +127,33 @@ class EmojiDataPasta {
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+
+        // Tooltip functionality
+        this.initializeTooltips();
+    }
+
+    initializeTooltips() {
+        const tooltip = document.getElementById('tooltip');
+        
+        document.addEventListener('mouseover', (e) => {
+            if (e.target.classList.contains('field-info-icon')) {
+                const fieldName = e.target.dataset.field;
+                const description = this.fieldDescriptions[fieldName] || 'No description available';
+                
+                tooltip.textContent = description;
+                tooltip.classList.add('visible');
+                
+                const rect = e.target.getBoundingClientRect();
+                tooltip.style.left = rect.left + rect.width + 10 + 'px';
+                tooltip.style.top = rect.top - 10 + 'px';
+            }
+        });
+
+        document.addEventListener('mouseout', (e) => {
+            if (e.target.classList.contains('field-info-icon')) {
+                tooltip.classList.remove('visible');
+            }
+        });
     }
 
     async loadDefaultData() {
@@ -103,6 +210,9 @@ class EmojiDataPasta {
         }
 
         this.analyzeFieldStructure();
+        this.filteredEmojis = [...this.originalData];
+        this.currentEmojiIndex = 0;
+        this.currentVariant = 'default';
         this.updateDisplay();
     }
 
@@ -111,33 +221,49 @@ class EmojiDataPasta {
         
         if (this.originalData.length === 0) return;
 
-        // Analyze all fields across all emojis
+        // Analyze ALL fields across ALL emojis to get comprehensive field list
         this.originalData.forEach(emoji => {
-            Object.keys(emoji).forEach(field => {
-                if (!this.fieldSchema[field]) {
-                    this.fieldSchema[field] = {
-                        type: this.getFieldType(emoji[field]),
-                        usage: 0,
-                        examples: [],
-                        hasNullValues: false,
-                        hasEmptyValues: false
-                    };
-                }
-                
-                this.fieldSchema[field].usage++;
-                
-                if (emoji[field] === null) {
-                    this.fieldSchema[field].hasNullValues = true;
-                } else if (emoji[field] === '') {
-                    this.fieldSchema[field].hasEmptyValues = true;
-                } else if (this.fieldSchema[field].examples.length < 3) {
-                    this.fieldSchema[field].examples.push(emoji[field]);
-                }
-            });
+            this.analyzeObjectFields(emoji, '');
         });
+
+        // Update complete preset with all available fields
+        this.presets.complete.fields = Object.keys(this.fieldSchema).sort();
 
         // Initially select all fields
         this.selectedFields = new Set(Object.keys(this.fieldSchema));
+    }
+
+    analyzeObjectFields(obj, prefix) {
+        Object.keys(obj).forEach(field => {
+            const fullFieldName = prefix ? `${prefix}.${field}` : field;
+            
+            if (!this.fieldSchema[fullFieldName]) {
+                this.fieldSchema[fullFieldName] = {
+                    type: this.getFieldType(obj[field]),
+                    usage: 0,
+                    examples: [],
+                    hasNullValues: false,
+                    hasEmptyValues: false,
+                    isSubField: !!prefix,
+                    parentField: prefix
+                };
+            }
+            
+            this.fieldSchema[fullFieldName].usage++;
+            
+            if (obj[field] === null) {
+                this.fieldSchema[fullFieldName].hasNullValues = true;
+            } else if (obj[field] === '') {
+                this.fieldSchema[fullFieldName].hasEmptyValues = true;
+            } else if (this.fieldSchema[fullFieldName].examples.length < 3) {
+                this.fieldSchema[fullFieldName].examples.push(obj[field]);
+            }
+
+            // Recursively analyze nested objects
+            if (obj[field] && typeof obj[field] === 'object' && !Array.isArray(obj[field])) {
+                this.analyzeObjectFields(obj[field], fullFieldName);
+            }
+        });
     }
 
     getFieldType(value) {
@@ -149,6 +275,7 @@ class EmojiDataPasta {
 
     updateDisplay() {
         this.updateCounters();
+        this.updateEmojiDisplay();
         this.renderOriginalStructure();
         this.renderFieldManager();
         this.renderOutputPreview();
@@ -162,6 +289,135 @@ class EmojiDataPasta {
         document.getElementById('fieldCounter').textContent = `${fieldCount} fields`;
     }
 
+    updateEmojiDisplay() {
+        const emojiIcon = document.getElementById('emojiIcon');
+        const emojiName = document.getElementById('emojiDisplayName');
+        const emojiIndex = document.getElementById('emojiIndex');
+        const variantLabel = document.getElementById('variantLabel');
+        
+        if (this.originalData.length === 0) {
+            emojiIcon.textContent = '🤔';
+            emojiName.textContent = 'Load emoji data';
+            emojiIndex.textContent = '0 / 0';
+            variantLabel.textContent = 'Default';
+            return;
+        }
+
+        const currentEmoji = this.originalData[this.currentEmojiIndex];
+        
+        // Get the current variant data
+        const variantData = this.getCurrentVariantData(currentEmoji);
+        
+        // Try to show the actual emoji character
+        let emojiChar = '📝'; // fallback
+        if (variantData.unified) {
+            try {
+                // Convert unified format to emoji character
+                const codePoints = variantData.unified.split('-').map(hex => parseInt(hex, 16));
+                emojiChar = String.fromCodePoint(...codePoints);
+            } catch (e) {
+                emojiChar = '📝';
+            }
+        }
+        
+        emojiIcon.textContent = emojiChar;
+        emojiName.textContent = currentEmoji.name || 'Unknown Emoji';
+        emojiIndex.textContent = `${this.currentEmojiIndex + 1} / ${this.originalData.length}`;
+        
+        // Update variant label
+        if (this.currentVariant === 'default') {
+            variantLabel.textContent = 'Default';
+        } else {
+            const variantNames = {
+                '1F3FB': 'Light Skin',
+                '1F3FC': 'Medium-Light Skin',
+                '1F3FD': 'Medium Skin',
+                '1F3FE': 'Medium-Dark Skin',
+                '1F3FF': 'Dark Skin'
+            };
+            variantLabel.textContent = variantNames[this.currentVariant] || `Variant ${this.currentVariant}`;
+        }
+    }
+
+    getCurrentVariantData(emoji) {
+        if (this.currentVariant === 'default') {
+            return emoji;
+        }
+        
+        if (emoji.skin_variations && emoji.skin_variations[this.currentVariant]) {
+            return {
+                ...emoji,
+                ...emoji.skin_variations[this.currentVariant]
+            };
+        }
+        
+        return emoji;
+    }
+
+    getAvailableVariants(emoji) {
+        const variants = ['default'];
+        if (emoji.skin_variations) {
+            variants.push(...Object.keys(emoji.skin_variations));
+        }
+        return variants;
+    }
+
+    cycleVariant() {
+        if (this.originalData.length === 0) return;
+        
+        const currentEmoji = this.originalData[this.currentEmojiIndex];
+        const availableVariants = this.getAvailableVariants(currentEmoji);
+        
+        const currentIndex = availableVariants.indexOf(this.currentVariant);
+        const nextIndex = (currentIndex + 1) % availableVariants.length;
+        this.currentVariant = availableVariants[nextIndex];
+        
+        this.updateEmojiDisplay();
+        this.renderOriginalStructure();
+    }
+
+    selectEmojiFromBrowser(emojiIndex) {
+        this.currentEmojiIndex = emojiIndex;
+        this.currentVariant = 'default';
+        this.hideEmojiBrowser();
+        this.updateEmojiDisplay();
+        this.renderOriginalStructure();
+        this.showMessage(`Selected: ${this.originalData[emojiIndex].name}`, 'success');
+    }
+
+    prevEmoji() {
+        if (this.originalData.length === 0) return;
+        
+        this.currentEmojiIndex = this.currentEmojiIndex > 0 
+            ? this.currentEmojiIndex - 1 
+            : this.originalData.length - 1;
+        
+        this.currentVariant = 'default';
+        this.updateEmojiDisplay();
+        this.renderOriginalStructure();
+    }
+
+    nextEmoji() {
+        if (this.originalData.length === 0) return;
+        
+        this.currentEmojiIndex = this.currentEmojiIndex < this.originalData.length - 1 
+            ? this.currentEmojiIndex + 1 
+            : 0;
+        
+        this.currentVariant = 'default';
+        this.updateEmojiDisplay();
+        this.renderOriginalStructure();
+    }
+
+    randomEmoji() {
+        if (this.originalData.length === 0) return;
+        
+        this.currentEmojiIndex = Math.floor(Math.random() * this.originalData.length);
+        this.currentVariant = 'default';
+        this.updateEmojiDisplay();
+        this.renderOriginalStructure();
+    }
+
     renderOriginalStructure() {
         const container = document.getElementById('originalStructure');
         
@@ -170,14 +426,72 @@ class EmojiDataPasta {
             return;
         }
 
-        // Show a sample emoji with syntax highlighting
-        const sampleEmoji = this.originalData[0];
-        const jsonString = JSON.stringify(sampleEmoji, null, 2);
-        const highlightedJson = this.highlightJson(jsonString);
+        // Show the current selected emoji with current variant
+        const currentEmoji = this.originalData[this.currentEmojiIndex];
+        const variantData = this.getCurrentVariantData(currentEmoji);
+        const jsonString = JSON.stringify(variantData, null, 2);
+        const highlightedJson = this.highlightJsonWithRemovedFields(jsonString, variantData);
         
         container.innerHTML = `
             <div class="json-code">${highlightedJson}</div>
         `;
+    }
+
+    highlightJsonWithRemovedFields(jsonString, emojiData) {
+        const allFields = this.getAllFieldsFromObject(emojiData, '');
+        const removedFields = allFields.filter(field => !this.selectedFields.has(field));
+        
+        let highlighted = jsonString
+            .replace(/"([^"]+)":/g, (match, fieldName) => {
+                const isRemoved = removedFields.some(field => field.endsWith(fieldName) || field === fieldName);
+                const className = isRemoved ? 'json-key removed' : 'json-key';
+                return `<span class="${className}">"${fieldName}"</span>:`;
+            });
+
+        // Highlight values for removed fields
+        removedFields.forEach(field => {
+            const fieldParts = field.split('.');
+            const finalKey = fieldParts[fieldParts.length - 1];
+            
+            const valueRegex = new RegExp(`("${finalKey}":\\s*)((?:"[^"]*"|\\d+\\.?\\d*|true|false|null|\\[.*?\\]|\\{.*?\\}))`, 'g');
+            highlighted = highlighted.replace(valueRegex, (match, prefix, value) => {
+                let className = 'removed';
+                if (value.startsWith('"')) className = 'json-string removed';
+                else if (!isNaN(value)) className = 'json-number removed';
+                else if (value === 'true' || value === 'false') className = 'json-boolean removed';
+                else if (value === 'null') className = 'json-null removed';
+                
+                return `${prefix}<span class="${className}">${value}</span>`;
+            });
+        });
+
+        // Wrap removed field lines
+        const lines = highlighted.split('\n');
+        const processedLines = lines.map(line => {
+            const hasRemovedField = removedFields.some(field => {
+                const finalKey = field.split('.').pop();
+                return line.includes(`"${finalKey}"`);
+            });
+            if (hasRemovedField) {
+                return `<div class="json-removed-line">${line}</div>`;
+            }
+            return line;
+        });
+
+        return processedLines.join('\n');
+    }
+
+    getAllFieldsFromObject(obj, prefix) {
+        let fields = [];
+        Object.keys(obj).forEach(key => {
+            const fullKey = prefix ? `${prefix}.${key}` : key;
+            fields.push(fullKey);
+            
+            if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+                fields = fields.concat(this.getAllFieldsFromObject(obj[key], fullKey));
+            }
+        });
+        return fields;
     }
 
     renderFieldManager() {
@@ -188,37 +502,86 @@ class EmojiDataPasta {
             return;
         }
 
-        const fields = Object.keys(this.fieldSchema).sort();
+        // Group fields by parent
+        const topLevelFields = Object.keys(this.fieldSchema).filter(field => !field.includes('.'));
+        const groupedFields = {};
+        
+        topLevelFields.forEach(field => {
+            groupedFields[field] = {
+                field: field,
+                subFields: Object.keys(this.fieldSchema).filter(f => f.startsWith(field + '.'))
+            };
+        });
+
         const totalEmojis = this.originalData.length;
 
         container.innerHTML = `
             <div class="field-group">
                 <div class="field-group-header">
                     <div class="field-group-title">Available Fields</div>
-                    <div class="field-group-count">${fields.length} fields</div>
+                    <div class="field-group-count">${Object.keys(this.fieldSchema).length} fields</div>
                 </div>
                 <div class="field-list">
-                    ${fields.map(field => {
+                    ${topLevelFields.map(field => {
                         const fieldInfo = this.fieldSchema[field];
                         const usagePercent = Math.round((fieldInfo.usage / totalEmojis) * 100);
                         const isSelected = this.selectedFields.has(field);
+                        const hasSubFields = groupedFields[field].subFields.length > 0;
+                        const isExpanded = this.expandedFields.has(field);
                         
-                        return `
+                        let html = `
                             <div class="field-item">
                                 <input type="checkbox" 
                                        class="field-checkbox" 
                                        id="field-${field}"
                                        ${isSelected ? 'checked' : ''}
                                        onchange="emojiPasta.toggleField('${field}')">
+                                ${hasSubFields ? `<div class="field-expand-icon ${isExpanded ? 'expanded' : ''}" onclick="emojiPasta.toggleFieldExpansion('${field}')">${isExpanded ? '−' : '+'}</div>` : ''}
                                 <div class="field-name">${field}</div>
+                                <div class="field-info-icon" data-field="${field}">i</div>
                                 <div class="field-type">${fieldInfo.type}</div>
                                 <div class="field-usage">${usagePercent}%</div>
                             </div>
                         `;
+
+                        // Add sub-fields if expanded
+                        if (hasSubFields && isExpanded) {
+                            groupedFields[field].subFields.forEach(subField => {
+                                const subFieldInfo = this.fieldSchema[subField];
+                                const subUsagePercent = Math.round((subFieldInfo.usage / totalEmojis) * 100);
+                                const subIsSelected = this.selectedFields.has(subField);
+                                const subFieldName = subField.split('.').pop();
+                                
+                                html += `
+                                    <div class="field-item sub-field">
+                                        <input type="checkbox" 
+                                               class="field-checkbox" 
+                                               id="field-${subField}"
+                                               ${subIsSelected ? 'checked' : ''}
+                                               onchange="emojiPasta.toggleField('${subField}')">
+                                        <div class="field-name">${subFieldName}</div>
+                                        <div class="field-info-icon" data-field="${subField}">i</div>
+                                        <div class="field-type">${subFieldInfo.type}</div>
+                                        <div class="field-usage">${subUsagePercent}%</div>
+                                    </div>
+                                `;
+                            });
+                        }
+
+                        return html;
                     }).join('')}
                 </div>
             </div>
         `;
+    }
+
+    toggleFieldExpansion(fieldName) {
+        if (this.expandedFields.has(fieldName)) {
+            this.expandedFields.delete(fieldName);
+        } else {
+            this.expandedFields.add(fieldName);
+        }
+        this.renderFieldManager();
     }
 
     renderOutputPreview() {
@@ -229,8 +592,10 @@ class EmojiDataPasta {
             return;
         }
 
-        // Create a sample output based on selected fields
-        const sampleOutput = this.createFilteredEmoji(this.originalData[0]);
+        // Create a sample output based on selected fields from current emoji
+        const currentEmoji = this.originalData[this.currentEmojiIndex];
+        const variantData = this.getCurrentVariantData(currentEmoji);
+        const sampleOutput = this.createFilteredEmoji(variantData);
         const jsonString = JSON.stringify(sampleOutput, null, 2);
         const highlightedJson = this.highlightJson(jsonString);
         
@@ -239,11 +604,124 @@ class EmojiDataPasta {
         `;
     }
 
+    showEmojiBrowser() {
+        document.getElementById('emojiBrowserModal').classList.add('active');
+        this.renderEmojiTable();
+        
+        // Add click outside to close
+        setTimeout(() => {
+            document.addEventListener('click', this.closeEmojiBrowserOnClickOutside);
+        }, 100);
+    }
+
+    hideEmojiBrowser() {
+        document.getElementById('emojiBrowserModal').classList.remove('active');
+        document.removeEventListener('click', this.closeEmojiBrowserOnClickOutside);
+    }
+
+    closeEmojiBrowserOnClickOutside = (e) => {
+        const modal = document.getElementById('emojiBrowserModal');
+        const content = modal.querySelector('.emoji-browser-content');
+        if (modal.classList.contains('active') && !content.contains(e.target)) {
+            this.hideEmojiBrowser();
+        }
+    }
+
+    searchEmojis(query) {
+        if (!query.trim()) {
+            this.filteredEmojis = [...this.originalData];
+        } else {
+            const searchTerm = query.toLowerCase();
+            this.filteredEmojis = this.originalData.filter(emoji => 
+                (emoji.name && emoji.name.toLowerCase().includes(searchTerm)) ||
+                (emoji.short_name && emoji.short_name.toLowerCase().includes(searchTerm)) ||
+                (emoji.category && emoji.category.toLowerCase().includes(searchTerm)) ||
+                (emoji.subcategory && emoji.subcategory.toLowerCase().includes(searchTerm)) ||
+                (emoji.unified && emoji.unified.toLowerCase().includes(searchTerm)) ||
+                (emoji.short_names && emoji.short_names.some(name => name.toLowerCase().includes(searchTerm)))
+            );
+        }
+        
+        this.renderEmojiTable();
+    }
+
+    renderEmojiTable() {
+        const tbody = document.getElementById('emojiTableBody');
+        const resultsSpan = document.getElementById('searchResults');
+        
+        if (this.filteredEmojis.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #8892b0;">No emojis found</td></tr>';
+            resultsSpan.textContent = '0 results';
+            return;
+        }
+
+        // Limit to first 500 results for performance
+        const displayEmojis = this.filteredEmojis.slice(0, 500);
+        
+        tbody.innerHTML = displayEmojis.map((emoji, index) => {
+            // Get actual emoji index in original data
+            const originalIndex = this.originalData.indexOf(emoji);
+            
+            // Try to render actual emoji
+            let emojiChar = '📝';
+            if (emoji.unified) {
+                try {
+                    const codePoints = emoji.unified.split('-').map(hex => parseInt(hex, 16));
+                    emojiChar = String.fromCodePoint(...codePoints);
+                } catch (e) {
+                    emojiChar = '📝';
+                }
+            }
+            
+            return `
+                <tr onclick="emojiPasta.selectEmojiFromBrowser(${originalIndex})" title="Click to select this emoji">
+                    <td>${emojiChar}</td>
+                    <td>${emoji.name || 'N/A'}</td>
+                    <td>:${emoji.short_name || 'unknown'}:</td>
+                    <td>${emoji.category || 'N/A'}</td>
+                    <td>${emoji.subcategory || 'N/A'}</td>
+                    <td>${emoji.unified || 'N/A'}</td>
+                    <td>${emoji.added_in || 'N/A'}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const totalResults = this.filteredEmojis.length;
+        const displayCount = Math.min(totalResults, 500);
+        resultsSpan.textContent = totalResults > 500 
+            ? `${displayCount} of ${totalResults} results (showing first 500)`
+            : `${totalResults} results`;
+    }
+
+    applyPreset(presetKey) {
+        if (!presetKey || !this.presets[presetKey]) return;
+
+        const preset = this.presets[presetKey];
+        
+        if (presetKey === 'complete') {
+            this.selectedFields = new Set(Object.keys(this.fieldSchema));
+        } else {
+            // Only select fields that exist in the current data
+            const availableFields = preset.fields.filter(field => this.fieldSchema[field]);
+            this.selectedFields = new Set(availableFields);
+        }
+        
+        this.renderFieldManager();
+        this.renderOriginalStructure(); // Update to show red highlighting
+        this.renderOutputPreview();
+        
+        this.showMessage(`Applied "${preset.name}" preset: ${this.selectedFields.size} fields selected`, 'success');
+    }
+
     createFilteredEmoji(originalEmoji) {
         const filtered = {};
         
         this.selectedFields.forEach(field => {
-            if (originalEmoji.hasOwnProperty(field)) {
+            if (field.includes('.')) {
+                // Handle nested fields
+                const parts = field.split('.');
+                this.setNestedValue(filtered, parts, this.getNestedValue(originalEmoji, parts));
+            } else if (originalEmoji.hasOwnProperty(field)) {
                 const value = originalEmoji[field];
                 
                 // Apply empty field filtering if enabled
@@ -257,25 +735,68 @@ class EmojiDataPasta {
         return filtered;
     }
 
+    getNestedValue(obj, parts) {
+        let current = obj;
+        for (const part of parts) {
+            if (current && typeof current === 'object' && current.hasOwnProperty(part)) {
+                current = current[part];
+            } else {
+                return undefined;
+            }
+        }
+        return current;
+    }
+
+    setNestedValue(obj, parts, value) {
+        if (value === undefined) return;
+        
+        let current = obj;
+        for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            if (!current[part] || typeof current[part] !== 'object') {
+                current[part] = {};
+            }
+            current = current[part];
+        }
+        
+        const finalKey = parts[parts.length - 1];
+        if (this.settings.includeEmptyFields || 
+            (value !== null && value !== '' && value !== undefined)) {
+            current[finalKey] = value;
+        }
+    }
+
     toggleField(fieldName) {
         if (this.selectedFields.has(fieldName)) {
             this.selectedFields.delete(fieldName);
+            
+            // If removing a parent field, also remove its sub-fields
+            const subFields = Object.keys(this.fieldSchema).filter(f => f.startsWith(fieldName + '.'));
+            subFields.forEach(subField => this.selectedFields.delete(subField));
         } else {
             this.selectedFields.add(fieldName);
+            
+            // If adding a parent field that has sub-fields, add them too
+            const subFields = Object.keys(this.fieldSchema).filter(f => f.startsWith(fieldName + '.'));
+            subFields.forEach(subField => this.selectedFields.add(subField));
         }
         
+        this.renderFieldManager();
+        this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
     }
 
     selectAllFields() {
         this.selectedFields = new Set(Object.keys(this.fieldSchema));
         this.renderFieldManager();
+        this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
     }
 
     selectNoFields() {
         this.selectedFields = new Set();
         this.renderFieldManager();
+        this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
     }
 
@@ -291,6 +812,7 @@ class EmojiDataPasta {
         }
 
         this.showMessage(`Applied changes! Selected ${this.selectedFields.size} fields out of ${Object.keys(this.fieldSchema).length}`, 'success');
+        this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
     }
 
@@ -444,15 +966,32 @@ class EmojiDataPasta {
             this.showSettingsPanel();
         }
 
-        // Escape to close settings panel
+        // Escape to close modals
         if (e.key === 'Escape') {
             this.hideSettingsPanel();
+            this.hideEmojiBrowser();
         }
 
         // Ctrl/Cmd + A to select all fields
         if ((e.ctrlKey || e.metaKey) && e.key === 'a' && e.target.closest('.field-manager')) {
             e.preventDefault();
             this.selectAllFields();
+        }
+
+        // Arrow keys for emoji navigation
+        if (e.key === 'ArrowLeft' && !e.target.matches('input, textarea')) {
+            e.preventDefault();
+            this.prevEmoji();
+        }
+        if (e.key === 'ArrowRight' && !e.target.matches('input, textarea')) {
+            e.preventDefault();
+            this.nextEmoji();
+        }
+
+        // Space to cycle variants
+        if (e.key === ' ' && !e.target.matches('input, textarea')) {
+            e.preventDefault();
+            this.cycleVariant();
         }
     }
 

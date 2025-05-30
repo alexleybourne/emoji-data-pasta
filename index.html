@@ -23,18 +23,67 @@
                 </span>
             </div>
             <div class="actions">
+                <button id="toggleEmojiTable" class="btn btn-secondary">🔍 Browse Emojis</button>
                 <button id="selectAll" class="btn btn-secondary">Select All Fields</button>
                 <button id="selectNone" class="btn btn-secondary">Select None</button>
                 <button id="applyChanges" class="btn btn-warning">Apply Changes</button>
             </div>
         </div>
 
+        <!-- Emoji Browser Modal -->
+        <div class="emoji-browser-modal" id="emojiBrowserModal">
+            <div class="emoji-browser-content">
+                <div class="emoji-browser-header">
+                    <h3>🔍 Emoji Browser</h3>
+                    <div class="search-controls">
+                        <input type="text" id="emojiSearch" placeholder="Search emojis (name, category, short_name...)">
+                        <span class="search-tip">Click any row to select that emoji</span>
+                        <button id="closeEmojiBrowser" class="btn btn-small">×</button>
+                    </div>
+                </div>
+                <div class="emoji-table-container">
+                    <table class="emoji-table" id="emojiTable">
+                        <thead>
+                            <tr>
+                                <th>Emoji</th>
+                                <th>Name</th>
+                                <th>Short Name</th>
+                                <th>Category</th>
+                                <th>Subcategory</th>
+                                <th>Unicode</th>
+                                <th>Added In</th>
+                            </tr>
+                        </thead>
+                        <tbody id="emojiTableBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="emoji-browser-footer">
+                    <span id="searchResults">0 results</span>
+                </div>
+            </div>
+        </div>
+
         <div class="main-content">
             <!-- Left Panel - Original Structure -->
             <div class="panel sample-panel">
+                <div class="emoji-display" id="emojiDisplay">
+                    <div class="emoji-icon" id="emojiIcon">🤔</div>
+                    <div class="emoji-name" id="emojiDisplayName">Select an emoji</div>
+                    <div class="emoji-variant-info">
+                        <span class="variant-label" id="variantLabel">Default</span>
+                        <button class="btn btn-small" id="cycleVariant">🎨 Variant</button>
+                    </div>
+                    <div class="emoji-navigation">
+                        <button class="btn btn-small" id="prevEmoji">← Prev</button>
+                        <span class="emoji-index" id="emojiIndex">0 / 0</span>
+                        <button class="btn btn-small" id="nextEmoji">Next →</button>
+                        <button class="btn btn-small" id="randomEmoji">🎲 Random</button>
+                    </div>
+                </div>
                 <div class="panel-header">
                     <h2>Original Emoji Structure</h2>
-                    <span class="sample-info">Sample from your data</span>
+                    <span class="sample-info">Click emoji above to change sample</span>
                 </div>
                 <div class="json-view" id="originalStructure">
                     <div class="loading">Load a JSON file to see the emoji structure</div>
@@ -47,7 +96,15 @@
             <div class="panel field-manager-panel">
                 <div class="panel-header">
                     <h2>Field Manager</h2>
-                    <span class="field-counter" id="fieldCounter">0 fields</span>
+                    <div class="field-controls">
+                        <select id="fieldPresets" class="preset-select">
+                            <option value="">Select Preset...</option>
+                            <option value="minimal">Minimal</option>
+                            <option value="essential">Essential</option>
+                            <option value="complete">Complete</option>
+                        </select>
+                        <span class="field-counter" id="fieldCounter">0 fields</span>
+                    </div>
                 </div>
                 <div class="field-manager" id="fieldManager">
                     <div class="no-data">Load emoji data to manage fields</div>
@@ -114,6 +171,9 @@
                 <div class="progress-text" id="progressText">0 / 0 emojis processed</div>
             </div>
         </div>
+
+        <!-- Tooltip -->
+        <div class="tooltip" id="tooltip"></div>
     </div>
 
     <input type="file" id="fileInput" accept=".json" style="display: none;">
