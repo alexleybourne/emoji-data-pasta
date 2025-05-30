@@ -70,9 +70,12 @@
                 <div class="emoji-display" id="emojiDisplay">
                     <div class="emoji-icon" id="emojiIcon">🤔</div>
                     <div class="emoji-name" id="emojiDisplayName">Select an emoji</div>
-                    <div class="emoji-variant-info">
-                        <span class="variant-label" id="variantLabel">Default</span>
-                        <button class="btn btn-small" id="cycleVariant">🎨 Variant</button>
+                    <div class="emoji-variant-info" id="variantInfo" style="display: none;">
+                        <span class="variant-label">Variant:</span>
+                        <select id="variantSelect" class="variant-select">
+                            <option value="default">Default</option>
+                        </select>
+                        <button class="btn btn-small" id="resetVariant">🔄 Reset</button>
                     </div>
                     <div class="emoji-navigation">
                         <button class="btn btn-small" id="prevEmoji">← Prev</button>
@@ -132,31 +135,92 @@
                 <button id="closeSettings" class="btn btn-small">×</button>
             </div>
             <div class="settings-content">
+                <div class="file-size-comparison" id="fileSizeComparison" style="display: none;">
+                    <h4>File Size Impact</h4>
+                    <div class="size-stats">
+                        <div class="size-stat">
+                            <span class="size-label">Original Size:</span>
+                            <span class="size-value" id="originalSize">-</span>
+                        </div>
+                        <div class="size-stat">
+                            <span class="size-label">New Size:</span>
+                            <span class="size-value" id="newSize">-</span>
+                        </div>
+                        <div class="size-stat savings">
+                            <span class="size-label">Space Saved:</span>
+                            <span class="size-value" id="spaceSaved">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="saveSettings" checked>
+                        <strong>Save Settings</strong>
+                    </label>
+                    <div class="setting-description">
+                        When enabled, your field selections and export preferences will be saved in the file. 
+                        When you reload this file later, it will automatically restore your previous configuration 
+                        and show you exactly what was changed from the original data.
+                    </div>
+                </div>
+
                 <div class="setting-group">
                     <label>
                         <input type="checkbox" id="includeEmptyFields" checked>
-                        Include empty/null fields in output
+                        <strong>Include Empty Fields</strong>
                     </label>
+                    <div class="setting-description">
+                        Keep fields that have null, empty string, or undefined values in the output. 
+                        Unchecking this will remove these fields entirely, making the file smaller.
+                    </div>
                 </div>
+
                 <div class="setting-group">
                     <label>
                         <input type="checkbox" id="prettifyJson" checked>
-                        Pretty format JSON output
+                        <strong>Pretty Format JSON</strong>
                     </label>
+                    <div class="setting-description">
+                        Format the JSON with proper indentation and line breaks for human readability. 
+                        Unchecking this creates a minified single-line file that's smaller but harder to read.
+                    </div>
                 </div>
+
                 <div class="setting-group">
                     <label>
                         <input type="checkbox" id="includeStats" checked>
-                        Include processing statistics
+                        <strong>Include Processing Statistics</strong>
                     </label>
+                    <div class="setting-description">
+                        Add metadata about the processing operation including how many fields were removed, 
+                        processing timestamp, and other useful information for tracking changes.
+                    </div>
                 </div>
+
                 <div class="setting-group">
-                    <label for="customFilename">Output filename:</label>
+                    <label for="customFilename"><strong>Output Filename:</strong></label>
                     <input type="text" id="customFilename" value="emoji-edited.json">
+                    <div class="setting-description">
+                        The name of the downloaded file. Include .json extension for proper file type recognition.
+                    </div>
                 </div>
+
                 <div class="setting-group">
-                    <label for="arrayName">Wrap in array named:</label>
+                    <label for="arrayName"><strong>Wrap in Object Named:</strong></label>
                     <input type="text" id="arrayName" placeholder="Leave empty for root array">
+                    <div class="setting-description">
+                        Optionally wrap the emoji array in an object with this name. 
+                        Leave empty to export as a direct array. Useful for API compatibility.
+                    </div>
+                </div>
+
+                <div class="settings-actions">
+                    <button id="downloadFile" class="btn btn-success">
+                        <span class="btn-icon">⬇️</span>
+                        Download File
+                    </button>
+                    <button id="cancelExport" class="btn btn-secondary">Cancel</button>
                 </div>
             </div>
         </div>

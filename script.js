@@ -14,6 +14,7 @@ class EmojiDataPasta {
             includeEmptyFields: true,
             prettifyJson: true,
             includeStats: true,
+            saveSettings: true,
             filename: 'emoji-edited.json',
             arrayName: ''
         };
@@ -50,16 +51,16 @@ class EmojiDataPasta {
             'obsoleted_by': 'Unicode that replaces this emoji if obsoleted',
             'obsoletes': 'Unicode that this emoji replaces',
             'unicode': 'The actual Unicode character(s)',
-            // Sub-field descriptions
-            'skin_variations.unified': 'Unicode for this skin tone variant',
-            'skin_variations.image': 'Image filename for this skin tone variant',
-            'skin_variations.sheet_x': 'X coordinate for this skin tone variant',
-            'skin_variations.sheet_y': 'Y coordinate for this skin tone variant',
-            'skin_variations.added_in': 'Unicode version when this variant was added',
-            'skin_variations.has_img_apple': 'Whether Apple has image for this variant',
-            'skin_variations.has_img_google': 'Whether Google has image for this variant',
-            'skin_variations.has_img_twitter': 'Whether Twitter has image for this variant',
-            'skin_variations.has_img_facebook': 'Whether Facebook has image for this variant'
+            // Unified sub-field descriptions for skin_variations
+            'skin_variations.unified': 'Unicode for skin tone variants (applies to all variants)',
+            'skin_variations.image': 'Image filename for skin tone variants (applies to all variants)',
+            'skin_variations.sheet_x': 'X coordinate for skin tone variants (applies to all variants)',
+            'skin_variations.sheet_y': 'Y coordinate for skin tone variants (applies to all variants)',
+            'skin_variations.added_in': 'Unicode version when variants were added (applies to all variants)',
+            'skin_variations.has_img_apple': 'Whether Apple has images for skin tone variants (applies to all variants)',
+            'skin_variations.has_img_google': 'Whether Google has images for skin tone variants (applies to all variants)',
+            'skin_variations.has_img_twitter': 'Whether Twitter has images for skin tone variants (applies to all variants)',
+            'skin_variations.has_img_facebook': 'Whether Facebook has images for skin tone variants (applies to all variants)'
         };
     }
 
@@ -100,7 +101,8 @@ class EmojiDataPasta {
         document.getElementById('prevEmoji').addEventListener('click', () => this.prevEmoji());
         document.getElementById('nextEmoji').addEventListener('click', () => this.nextEmoji());
         document.getElementById('randomEmoji').addEventListener('click', () => this.randomEmoji());
-        document.getElementById('cycleVariant').addEventListener('click', () => this.cycleVariant());
+        document.getElementById('variantSelect').addEventListener('change', (e) => this.selectVariant(e.target.value));
+        document.getElementById('resetVariant').addEventListener('click', () => this.resetVariant());
 
         // Emoji browser
         document.getElementById('toggleEmojiTable').addEventListener('click', () => this.showEmojiBrowser());
@@ -109,20 +111,29 @@ class EmojiDataPasta {
 
         // Settings panel
         document.getElementById('closeSettings').addEventListener('click', () => this.hideSettingsPanel());
+        document.getElementById('downloadFile').addEventListener('click', () => this.downloadFile());
+        document.getElementById('cancelExport').addEventListener('click', () => this.hideSettingsPanel());
+        document.getElementById('saveSettings').addEventListener('change', (e) => {
+            this.settings.saveSettings = e.target.checked;
+        });
         document.getElementById('includeEmptyFields').addEventListener('change', (e) => {
             this.settings.includeEmptyFields = e.target.checked;
+            this.updateFileSizePreview();
         });
         document.getElementById('prettifyJson').addEventListener('change', (e) => {
             this.settings.prettifyJson = e.target.checked;
+            this.updateFileSizePreview();
         });
         document.getElementById('includeStats').addEventListener('change', (e) => {
             this.settings.includeStats = e.target.checked;
+            this.updateFileSizePreview();
         });
         document.getElementById('customFilename').addEventListener('input', (e) => {
             this.settings.filename = e.target.value;
         });
         document.getElementById('arrayName').addEventListener('input', (e) => {
             this.settings.arrayName = e.target.value;
+            this.updateFileSizePreview();
         });
 
         // Keyboard shortcuts
@@ -197,8 +208,24 @@ class EmojiDataPasta {
 
     loadData(data) {
         // Handle both array and object with emoji_data_pasta_settings
+        let hasRestorableSettings = false;
+        
         if (data.emoji_data_pasta_settings) {
-            this.settings = { ...this.settings, ...data.emoji_data_pasta_settings };
+            const savedSettings = data.emoji_data_pasta_settings;
+            
+            // Restore settings if they were saved
+            if (savedSettings.fieldSelections && savedSettings.settings && savedSettings.settings.saveSettings) {
+                hasRestorableSettings = true;
+                
+                // Restore export settings
+                this.settings = { ...this.settings, ...savedSettings.settings };
+                
+                // Store the saved field selections and expanded state for later restoration
+                this.savedFieldSelections = new Set(savedSettings.fieldSelections);
+                this.savedExpandedFields = new Set(savedSettings.expandedFields || []);
+                this.savedFieldSchema = savedSettings.originalFieldSchema || {};
+            }
+            
             // Remove settings and extract the actual array
             delete data.emoji_data_pasta_settings;
             this.originalData = Object.values(data).filter(item => typeof item === 'object' && item.name);
@@ -213,6 +240,31 @@ class EmojiDataPasta {
         this.filteredEmojis = [...this.originalData];
         this.currentEmojiIndex = 0;
         this.currentVariant = 'default';
+        
+        // Restore saved field selections if available
+        if (hasRestorableSettings && this.savedFieldSelections) {
+            // Only restore selections for fields that still exist
+            this.selectedFields = new Set();
+            this.savedFieldSelections.forEach(field => {
+                if (this.fieldSchema[field]) {
+                    this.selectedFields.add(field);
+                }
+            });
+            
+            // Restore expanded state
+            this.expandedFields = new Set();
+            this.savedExpandedFields.forEach(field => {
+                if (this.fieldSchema[field]) {
+                    this.expandedFields.add(field);
+                }
+            });
+            
+            this.showMessage(`Loaded data with restored settings: ${this.selectedFields.size} fields selected`, 'info');
+        } else {
+            // Initially select all fields for new data
+            this.selectedFields = new Set(Object.keys(this.fieldSchema));
+        }
+        
         this.updateDisplay();
     }
 
@@ -223,7 +275,7 @@ class EmojiDataPasta {
 
         // Analyze ALL fields across ALL emojis to get comprehensive field list
         this.originalData.forEach(emoji => {
-            this.analyzeObjectFields(emoji, '');
+            this.analyzeEmojiFields(emoji);
         });
 
         // Update complete preset with all available fields
@@ -233,37 +285,53 @@ class EmojiDataPasta {
         this.selectedFields = new Set(Object.keys(this.fieldSchema));
     }
 
-    analyzeObjectFields(obj, prefix) {
-        Object.keys(obj).forEach(field => {
-            const fullFieldName = prefix ? `${prefix}.${field}` : field;
-            
-            if (!this.fieldSchema[fullFieldName]) {
-                this.fieldSchema[fullFieldName] = {
-                    type: this.getFieldType(obj[field]),
-                    usage: 0,
-                    examples: [],
-                    hasNullValues: false,
-                    hasEmptyValues: false,
-                    isSubField: !!prefix,
-                    parentField: prefix
-                };
-            }
-            
-            this.fieldSchema[fullFieldName].usage++;
-            
-            if (obj[field] === null) {
-                this.fieldSchema[fullFieldName].hasNullValues = true;
-            } else if (obj[field] === '') {
-                this.fieldSchema[fullFieldName].hasEmptyValues = true;
-            } else if (this.fieldSchema[fullFieldName].examples.length < 3) {
-                this.fieldSchema[fullFieldName].examples.push(obj[field]);
-            }
-
-            // Recursively analyze nested objects
-            if (obj[field] && typeof obj[field] === 'object' && !Array.isArray(obj[field])) {
-                this.analyzeObjectFields(obj[field], fullFieldName);
+    analyzeEmojiFields(emoji) {
+        // Analyze main emoji fields
+        Object.keys(emoji).forEach(field => {
+            if (field !== 'skin_variations') {
+                this.recordField(field, emoji[field]);
             }
         });
+
+        // For skin_variations, analyze the structure but treat variant fields as unified
+        if (emoji.skin_variations && typeof emoji.skin_variations === 'object') {
+            this.recordField('skin_variations', emoji.skin_variations);
+            
+            // Analyze what fields exist within skin variations
+            Object.values(emoji.skin_variations).forEach(variant => {
+                if (variant && typeof variant === 'object') {
+                    Object.keys(variant).forEach(variantField => {
+                        // Record this as a sub-field of skin_variations, but don't duplicate main fields
+                        const fullFieldName = `skin_variations.${variantField}`;
+                        this.recordField(fullFieldName, variant[variantField], true);
+                    });
+                }
+            });
+        }
+    }
+
+    recordField(fieldName, value, isSubField = false) {
+        if (!this.fieldSchema[fieldName]) {
+            this.fieldSchema[fieldName] = {
+                type: this.getFieldType(value),
+                usage: 0,
+                examples: [],
+                hasNullValues: false,
+                hasEmptyValues: false,
+                isSubField: isSubField,
+                parentField: isSubField ? fieldName.substring(0, fieldName.lastIndexOf('.')) : null
+            };
+        }
+        
+        this.fieldSchema[fieldName].usage++;
+        
+        if (value === null) {
+            this.fieldSchema[fieldName].hasNullValues = true;
+        } else if (value === '') {
+            this.fieldSchema[fieldName].hasEmptyValues = true;
+        } else if (this.fieldSchema[fieldName].examples.length < 3 && value !== null && value !== '') {
+            this.fieldSchema[fieldName].examples.push(value);
+        }
     }
 
     getFieldType(value) {
@@ -293,17 +361,54 @@ class EmojiDataPasta {
         const emojiIcon = document.getElementById('emojiIcon');
         const emojiName = document.getElementById('emojiDisplayName');
         const emojiIndex = document.getElementById('emojiIndex');
-        const variantLabel = document.getElementById('variantLabel');
+        const variantInfo = document.getElementById('variantInfo');
+        const variantSelect = document.getElementById('variantSelect');
         
         if (this.originalData.length === 0) {
             emojiIcon.textContent = '🤔';
             emojiName.textContent = 'Load emoji data';
             emojiIndex.textContent = '0 / 0';
-            variantLabel.textContent = 'Default';
+            variantInfo.style.display = 'none';
             return;
         }
 
         const currentEmoji = this.originalData[this.currentEmojiIndex];
+        
+        // Check if this emoji has variants
+        const availableVariants = this.getAvailableVariants(currentEmoji);
+        
+        if (availableVariants.length > 1) {
+            variantInfo.style.display = 'flex';
+            
+            // Update variant dropdown
+            variantSelect.innerHTML = '';
+            availableVariants.forEach(variant => {
+                const option = document.createElement('option');
+                option.value = variant;
+                
+                if (variant === 'default') {
+                    option.textContent = 'Default';
+                } else {
+                    const variantNames = {
+                        '1F3FB': 'Light Skin',
+                        '1F3FC': 'Medium-Light Skin',
+                        '1F3FD': 'Medium Skin',
+                        '1F3FE': 'Medium-Dark Skin',
+                        '1F3FF': 'Dark Skin'
+                    };
+                    option.textContent = variantNames[variant] || `Variant ${variant}`;
+                }
+                
+                if (variant === this.currentVariant) {
+                    option.selected = true;
+                }
+                
+                variantSelect.appendChild(option);
+            });
+        } else {
+            variantInfo.style.display = 'none';
+            this.currentVariant = 'default';
+        }
         
         // Get the current variant data
         const variantData = this.getCurrentVariantData(currentEmoji);
@@ -323,20 +428,6 @@ class EmojiDataPasta {
         emojiIcon.textContent = emojiChar;
         emojiName.textContent = currentEmoji.name || 'Unknown Emoji';
         emojiIndex.textContent = `${this.currentEmojiIndex + 1} / ${this.originalData.length}`;
-        
-        // Update variant label
-        if (this.currentVariant === 'default') {
-            variantLabel.textContent = 'Default';
-        } else {
-            const variantNames = {
-                '1F3FB': 'Light Skin',
-                '1F3FC': 'Medium-Light Skin',
-                '1F3FD': 'Medium Skin',
-                '1F3FE': 'Medium-Dark Skin',
-                '1F3FF': 'Dark Skin'
-            };
-            variantLabel.textContent = variantNames[this.currentVariant] || `Variant ${this.currentVariant}`;
-        }
     }
 
     getCurrentVariantData(emoji) {
@@ -362,26 +453,13 @@ class EmojiDataPasta {
         return variants;
     }
 
-    cycleVariant() {
-        if (this.originalData.length === 0) return;
-        
-        const currentEmoji = this.originalData[this.currentEmojiIndex];
-        const availableVariants = this.getAvailableVariants(currentEmoji);
-        
-        const currentIndex = availableVariants.indexOf(this.currentVariant);
-        const nextIndex = (currentIndex + 1) % availableVariants.length;
-        this.currentVariant = availableVariants[nextIndex];
-        
-        this.updateEmojiDisplay();
-        this.renderOriginalStructure();
-    }
-
     selectEmojiFromBrowser(emojiIndex) {
         this.currentEmojiIndex = emojiIndex;
         this.currentVariant = 'default';
         this.hideEmojiBrowser();
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
+        this.renderOutputPreview();
         this.showMessage(`Selected: ${this.originalData[emojiIndex].name}`, 'success');
     }
 
@@ -395,6 +473,7 @@ class EmojiDataPasta {
         this.currentVariant = 'default';
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
+        this.renderOutputPreview();
     }
 
     nextEmoji() {
@@ -407,6 +486,7 @@ class EmojiDataPasta {
         this.currentVariant = 'default';
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
+        this.renderOutputPreview();
     }
 
     randomEmoji() {
@@ -416,6 +496,7 @@ class EmojiDataPasta {
         this.currentVariant = 'default';
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
+        this.renderOutputPreview();
     }
 
     renderOriginalStructure() {
@@ -487,8 +568,15 @@ class EmojiDataPasta {
             const fullKey = prefix ? `${prefix}.${key}` : key;
             fields.push(fullKey);
             
-            if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
-                fields = fields.concat(this.getAllFieldsFromObject(obj[key], fullKey));
+            // Special handling for skin_variations
+            if (key === 'skin_variations' && obj[key] && typeof obj[key] === 'object') {
+                // Add sub-fields from skin_variations
+                const firstVariant = Object.values(obj[key])[0];
+                if (firstVariant && typeof firstVariant === 'object') {
+                    Object.keys(firstVariant).forEach(variantField => {
+                        fields.push(`skin_variations.${variantField}`);
+                    });
+                }
             }
         });
         return fields;
@@ -716,54 +804,53 @@ class EmojiDataPasta {
     createFilteredEmoji(originalEmoji) {
         const filtered = {};
         
-        this.selectedFields.forEach(field => {
-            if (field.includes('.')) {
-                // Handle nested fields
-                const parts = field.split('.');
-                this.setNestedValue(filtered, parts, this.getNestedValue(originalEmoji, parts));
-            } else if (originalEmoji.hasOwnProperty(field)) {
-                const value = originalEmoji[field];
-                
-                // Apply empty field filtering if enabled
-                if (this.settings.includeEmptyFields || 
-                    (value !== null && value !== '' && value !== undefined)) {
-                    filtered[field] = value;
+        // Process each field in the original emoji
+        Object.keys(originalEmoji).forEach(field => {
+            if (field === 'skin_variations') {
+                // Handle skin_variations specially
+                if (this.selectedFields.has('skin_variations') && originalEmoji.skin_variations) {
+                    const filteredVariations = {};
+                    
+                    Object.keys(originalEmoji.skin_variations).forEach(variantKey => {
+                        const variant = originalEmoji.skin_variations[variantKey];
+                        const filteredVariant = {};
+                        
+                        // For each field in the variant, check if the sub-field is selected
+                        Object.keys(variant).forEach(variantField => {
+                            const subFieldName = `skin_variations.${variantField}`;
+                            if (this.selectedFields.has(subFieldName)) {
+                                const value = variant[variantField];
+                                if (this.settings.includeEmptyFields || 
+                                    (value !== null && value !== '' && value !== undefined)) {
+                                    filteredVariant[variantField] = value;
+                                }
+                            }
+                        });
+                        
+                        // Only include this variant if it has any fields
+                        if (Object.keys(filteredVariant).length > 0) {
+                            filteredVariations[variantKey] = filteredVariant;
+                        }
+                    });
+                    
+                    // Only include skin_variations if there are any variants with content
+                    if (Object.keys(filteredVariations).length > 0) {
+                        filtered.skin_variations = filteredVariations;
+                    }
+                }
+            } else {
+                // Handle regular fields
+                if (this.selectedFields.has(field)) {
+                    const value = originalEmoji[field];
+                    if (this.settings.includeEmptyFields || 
+                        (value !== null && value !== '' && value !== undefined)) {
+                        filtered[field] = value;
+                    }
                 }
             }
         });
         
         return filtered;
-    }
-
-    getNestedValue(obj, parts) {
-        let current = obj;
-        for (const part of parts) {
-            if (current && typeof current === 'object' && current.hasOwnProperty(part)) {
-                current = current[part];
-            } else {
-                return undefined;
-            }
-        }
-        return current;
-    }
-
-    setNestedValue(obj, parts, value) {
-        if (value === undefined) return;
-        
-        let current = obj;
-        for (let i = 0; i < parts.length - 1; i++) {
-            const part = parts[i];
-            if (!current[part] || typeof current[part] !== 'object') {
-                current[part] = {};
-            }
-            current = current[part];
-        }
-        
-        const finalKey = parts[parts.length - 1];
-        if (this.settings.includeEmptyFields || 
-            (value !== null && value !== '' && value !== undefined)) {
-            current[finalKey] = value;
-        }
     }
 
     toggleField(fieldName) {
@@ -776,9 +863,11 @@ class EmojiDataPasta {
         } else {
             this.selectedFields.add(fieldName);
             
-            // If adding a parent field that has sub-fields, add them too
-            const subFields = Object.keys(this.fieldSchema).filter(f => f.startsWith(fieldName + '.'));
-            subFields.forEach(subField => this.selectedFields.add(subField));
+            // When adding a sub-field, ensure parent is also selected
+            if (fieldName.includes('.')) {
+                const parentField = fieldName.substring(0, fieldName.lastIndexOf('.'));
+                this.selectedFields.add(parentField);
+            }
         }
         
         this.renderFieldManager();
@@ -824,6 +913,17 @@ class EmojiDataPasta {
 
         document.getElementById('settingsPanel').classList.add('active');
         
+        // Update settings UI to reflect current values
+        document.getElementById('saveSettings').checked = this.settings.saveSettings;
+        document.getElementById('includeEmptyFields').checked = this.settings.includeEmptyFields;
+        document.getElementById('prettifyJson').checked = this.settings.prettifyJson;
+        document.getElementById('includeStats').checked = this.settings.includeStats;
+        document.getElementById('customFilename').value = this.settings.filename;
+        document.getElementById('arrayName').value = this.settings.arrayName;
+        
+        // Calculate and show file size comparison
+        this.updateFileSizePreview();
+        
         // Add click outside to close
         setTimeout(() => {
             document.addEventListener('click', this.closeSettingsOnClickOutside);
@@ -833,7 +933,6 @@ class EmojiDataPasta {
     hideSettingsPanel() {
         document.getElementById('settingsPanel').classList.remove('active');
         document.removeEventListener('click', this.closeSettingsOnClickOutside);
-        this.processAndSaveData();
     }
 
     closeSettingsOnClickOutside = (e) => {
@@ -843,39 +942,75 @@ class EmojiDataPasta {
         }
     }
 
+    downloadFile() {
+        this.hideSettingsPanel();
+        this.processAndSaveData();
+    }
+
     async processAndSaveData() {
         if (this.originalData.length === 0) {
             this.showMessage('No data to save', 'warning');
             return;
         }
 
-        // Show progress modal
-        this.showProgressModal();
-
-        const processedData = [];
-        const totalEmojis = this.originalData.length;
-        
-        // Process emojis in batches to avoid blocking UI
-        const batchSize = 100;
-        for (let i = 0; i < totalEmojis; i += batchSize) {
-            const batch = this.originalData.slice(i, i + batchSize);
-            
-            batch.forEach(emoji => {
-                const filtered = this.createFilteredEmoji(emoji);
-                if (Object.keys(filtered).length > 0) {
-                    processedData.push(filtered);
-                }
-            });
-
-            // Update progress
-            const progress = Math.min(((i + batchSize) / totalEmojis) * 100, 100);
-            this.updateProgress(progress, i + batch.length, totalEmojis);
-            
-            // Allow UI to update
-            await new Promise(resolve => setTimeout(resolve, 10));
+        // Show progress modal for large datasets
+        if (this.originalData.length > 1000) {
+            this.showProgressModal();
         }
 
-        this.hideProgressModal();
+        try {
+            // Prepare the data
+            const { finalData, processedData } = this.prepareExportData();
+
+            // Update progress for large datasets
+            if (this.originalData.length > 1000) {
+                this.updateProgress(50, Math.floor(this.originalData.length / 2), this.originalData.length);
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+
+            // Convert to JSON
+            const jsonString = this.settings.prettifyJson 
+                ? JSON.stringify(finalData, null, 2)
+                : JSON.stringify(finalData);
+
+            // Update progress
+            if (this.originalData.length > 1000) {
+                this.updateProgress(100, this.originalData.length, this.originalData.length);
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+
+            // Create and download file
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = this.settings.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            const removedCount = Object.keys(this.fieldSchema).length - this.selectedFields.size;
+            const savedSize = this.formatFileSize(blob.size);
+            this.showMessage(`Downloaded ${processedData.length} emojis with ${this.selectedFields.size} fields (${savedSize}, removed ${removedCount} fields)`, 'success');
+
+        } catch (error) {
+            this.showMessage('Error creating file: ' + error.message, 'error');
+        } finally {
+            this.hideProgressModal();
+        }
+    }
+
+    prepareExportData() {
+        const processedData = [];
+        
+        // Process emojis
+        this.originalData.forEach(emoji => {
+            const filtered = this.createFilteredEmoji(emoji);
+            if (Object.keys(filtered).length > 0) {
+                processedData.push(filtered);
+            }
+        });
 
         // Prepare final data structure
         let finalData;
@@ -889,7 +1024,7 @@ class EmojiDataPasta {
         }
 
         // Add statistics if enabled
-        if (this.settings.includeStats) {
+        if (this.settings.includeStats || this.settings.saveSettings) {
             const stats = {
                 originalDataCount: this.originalData.length,
                 finalDataCount: processedData.length,
@@ -901,6 +1036,13 @@ class EmojiDataPasta {
                 settings: { ...this.settings }
             };
 
+            // Add settings preservation data if enabled
+            if (this.settings.saveSettings) {
+                stats.fieldSelections = Array.from(this.selectedFields);
+                stats.expandedFields = Array.from(this.expandedFields);
+                stats.originalFieldSchema = this.fieldSchema;
+            }
+
             if (this.settings.arrayName && this.settings.arrayName.trim()) {
                 finalData.emoji_data_pasta_settings = stats;
             } else {
@@ -911,24 +1053,7 @@ class EmojiDataPasta {
             }
         }
 
-        // Convert to JSON
-        const jsonString = this.settings.prettifyJson 
-            ? JSON.stringify(finalData, null, 2)
-            : JSON.stringify(finalData);
-
-        // Create and download file
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = this.settings.filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        const removedCount = Object.keys(this.fieldSchema).length - this.selectedFields.size;
-        this.showMessage(`Saved ${processedData.length} emojis with ${this.selectedFields.size} fields (removed ${removedCount} fields)`, 'success');
+        return { finalData, processedData };
     }
 
     showProgressModal() {
@@ -979,19 +1104,19 @@ class EmojiDataPasta {
         }
 
         // Arrow keys for emoji navigation
-        if (e.key === 'ArrowLeft' && !e.target.matches('input, textarea')) {
+        if (e.key === 'ArrowLeft' && !e.target.matches('input, textarea, select')) {
             e.preventDefault();
             this.prevEmoji();
         }
-        if (e.key === 'ArrowRight' && !e.target.matches('input, textarea')) {
+        if (e.key === 'ArrowRight' && !e.target.matches('input, textarea, select')) {
             e.preventDefault();
             this.nextEmoji();
         }
 
-        // Space to cycle variants
-        if (e.key === ' ' && !e.target.matches('input, textarea')) {
+        // R to reset variant
+        if (e.key === 'r' && !e.target.matches('input, textarea, select')) {
             e.preventDefault();
-            this.cycleVariant();
+            this.resetVariant();
         }
     }
 
@@ -1024,6 +1149,52 @@ class EmojiDataPasta {
                 }
             }, 300);
         }, 4000);
+    }
+
+    selectVariant(variant) {
+        this.currentVariant = variant;
+        this.updateEmojiDisplay();
+        this.renderOriginalStructure();
+        this.renderOutputPreview();
+    }
+
+    resetVariant() {
+        this.currentVariant = 'default';
+        document.getElementById('variantSelect').value = 'default';
+        this.updateEmojiDisplay();
+        this.renderOriginalStructure();
+        this.renderOutputPreview();
+    }
+
+    updateFileSizePreview() {
+        // Calculate original file size
+        const originalJson = JSON.stringify(this.originalData);
+        const originalSize = new Blob([originalJson]).size;
+        
+        // Calculate new file size with current settings
+        const { finalData } = this.prepareExportData();
+        const newJson = this.settings.prettifyJson 
+            ? JSON.stringify(finalData, null, 2)
+            : JSON.stringify(finalData);
+        const newSize = new Blob([newJson]).size;
+        
+        // Calculate savings
+        const savings = originalSize - newSize;
+        const savingsPercent = ((savings / originalSize) * 100).toFixed(1);
+        
+        // Update UI
+        document.getElementById('originalSize').textContent = this.formatFileSize(originalSize);
+        document.getElementById('newSize').textContent = this.formatFileSize(newSize);
+        document.getElementById('spaceSaved').textContent = `${this.formatFileSize(savings)} (${savingsPercent}%)`;
+        document.getElementById('fileSizeComparison').style.display = 'block';
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 }
 
