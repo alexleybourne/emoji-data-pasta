@@ -9,8 +9,22 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1>🍝 Emoji Data Pasta</h1>
-            <p>Bulk edit emoji JSON fields with ease</p>
+            <div class="header-left">
+                <h1>🍝 Emoji Data Pasta</h1>
+            </div>
+            <div class="header-right">
+                <div class="attribution">
+                    <div class="data-source">
+                        data from <a href="https://github.com/iamcal/emoji-data/blob/master/emoji.json" target="_blank" rel="noopener noreferrer">iamcal emojidata</a>
+                    </div>
+                    <div class="creator">
+                        created by <a href="https://github.com/alexleybourne" target="_blank" rel="noopener noreferrer">Alex Leybourne</a> 2025
+                    </div>
+                </div>
+                <button id="themeToggle" class="btn btn-small theme-toggle" title="Toggle theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
         </header>
 
         <div class="toolbar">
@@ -41,7 +55,7 @@
                         <button id="closeEmojiBrowser" class="btn btn-small">×</button>
                     </div>
                 </div>
-                <div class="emoji-table-container">
+                <div class="emoji-table-container" id="emojiTableContainer">
                     <table class="emoji-table" id="emojiTable">
                         <thead>
                             <tr>
@@ -65,38 +79,56 @@
         </div>
 
         <div class="main-content">
-            <!-- Left Panel - Original Structure -->
-            <div class="panel sample-panel">
+            <!-- Top Section - Emoji Display -->
+            <div class="emoji-section">
                 <div class="emoji-display" id="emojiDisplay">
                     <div class="emoji-icon" id="emojiIcon">🤔</div>
-                    <div class="emoji-name" id="emojiDisplayName">Select an emoji</div>
-                    <div class="emoji-variant-info" id="variantInfo" style="display: none;">
-                        <span class="variant-label">Variant:</span>
-                        <select id="variantSelect" class="variant-select">
-                            <option value="default">Default</option>
-                        </select>
-                        <button class="btn btn-small" id="resetVariant">🔄 Reset</button>
+                    <div class="emoji-info">
+                        <div class="emoji-name" id="emojiDisplayName">Select an emoji</div>
+                        <div class="emoji-variant-info" id="variantInfo" style="display: none;">
+                            <span class="variant-label">Variant:</span>
+                            <select id="variantSelect" class="variant-select">
+                                <option value="default">Default</option>
+                            </select>
+                            <button class="btn btn-small" id="resetVariant">🔄</button>
+                        </div>
                     </div>
                     <div class="emoji-navigation">
-                        <button class="btn btn-small" id="prevEmoji">← Prev</button>
+                        <button class="btn btn-small" id="prevEmoji">←</button>
                         <span class="emoji-index" id="emojiIndex">0 / 0</span>
-                        <button class="btn btn-small" id="nextEmoji">Next →</button>
-                        <button class="btn btn-small" id="randomEmoji">🎲 Random</button>
+                        <button class="btn btn-small" id="nextEmoji">→</button>
+                        <button class="btn btn-small" id="randomEmoji">🎲</button>
                     </div>
-                </div>
-                <div class="panel-header">
-                    <h2>Original Emoji Structure</h2>
-                    <span class="sample-info">Click emoji above to change sample</span>
-                </div>
-                <div class="json-view" id="originalStructure">
-                    <div class="loading">Load a JSON file to see the emoji structure</div>
                 </div>
             </div>
 
-            <div class="panel-divider"></div>
+            <!-- Middle Section - Input/Output Split -->
+            <div class="json-section">
+                <div class="json-panel input-panel">
+                    <div class="panel-header">
+                        <h2>Original Structure</h2>
+                        <span class="sample-info">Current emoji data</span>
+                    </div>
+                    <div class="json-view" id="originalStructure">
+                        <div class="loading">Load a JSON file to see the emoji structure</div>
+                    </div>
+                </div>
 
-            <!-- Middle Panel - Field Manager -->
-            <div class="panel field-manager-panel">
+                <div class="panel-divider"></div>
+
+                <div class="json-panel output-panel">
+                    <div class="panel-header">
+                        <h2>Output Structure</h2>
+                        <span class="output-info">How your data will look</span>
+                    </div>
+                    <div class="json-view" id="outputStructure">
+                        <div class="loading">Make field changes to see output preview</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Section - Field Manager -->
+            <div class="field-section">
                 <div class="panel-header">
                     <h2>Field Manager</h2>
                     <div class="field-controls">
@@ -111,19 +143,6 @@
                 </div>
                 <div class="field-manager" id="fieldManager">
                     <div class="no-data">Load emoji data to manage fields</div>
-                </div>
-            </div>
-
-            <div class="panel-divider"></div>
-
-            <!-- Right Panel - Output Preview -->
-            <div class="panel output-panel">
-                <div class="panel-header">
-                    <h2>Output Structure</h2>
-                    <span class="output-info">How your data will look</span>
-                </div>
-                <div class="json-view" id="outputStructure">
-                    <div class="loading">Make field changes to see output preview</div>
                 </div>
             </div>
         </div>

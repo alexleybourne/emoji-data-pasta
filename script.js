@@ -18,6 +18,12 @@ class EmojiDataPasta {
             filename: 'emoji-edited.json',
             arrayName: ''
         };
+        this.emojiDisplayLimit = 100; // Initial display limit
+        this.emojiDisplayIncrement = 50; // How many to add each time
+        
+        // Theme management (dark mode by default)
+        this.theme = localStorage.getItem('emoji-pasta-theme') || 'dark';
+        this.applyTheme();
         
         this.initializeEventListeners();
         this.loadDefaultData();
@@ -138,6 +144,9 @@ class EmojiDataPasta {
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+
+        // Theme toggle
+        document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
 
         // Tooltip functionality
         this.initializeTooltips();
@@ -694,7 +703,12 @@ class EmojiDataPasta {
 
     showEmojiBrowser() {
         document.getElementById('emojiBrowserModal').classList.add('active');
+        this.emojiDisplayLimit = 100; // Reset display limit
         this.renderEmojiTable();
+        
+        // Add scroll listener for infinite loading
+        const tableContainer = document.getElementById('emojiTableContainer');
+        tableContainer.addEventListener('scroll', this.handleEmojiTableScroll);
         
         // Add click outside to close
         setTimeout(() => {
@@ -705,6 +719,24 @@ class EmojiDataPasta {
     hideEmojiBrowser() {
         document.getElementById('emojiBrowserModal').classList.remove('active');
         document.removeEventListener('click', this.closeEmojiBrowserOnClickOutside);
+        
+        // Remove scroll listener
+        const tableContainer = document.getElementById('emojiTableContainer');
+        tableContainer.removeEventListener('scroll', this.handleEmojiTableScroll);
+    }
+
+    handleEmojiTableScroll = (e) => {
+        const container = e.target;
+        const scrollPercentage = (container.scrollTop + container.clientHeight) / container.scrollHeight;
+        
+        // Load more when 80% scrolled
+        if (scrollPercentage > 0.8 && this.emojiDisplayLimit < this.filteredEmojis.length) {
+            this.emojiDisplayLimit = Math.min(
+                this.emojiDisplayLimit + this.emojiDisplayIncrement,
+                this.filteredEmojis.length
+            );
+            this.renderEmojiTable();
+        }
     }
 
     closeEmojiBrowserOnClickOutside = (e) => {
@@ -730,6 +762,8 @@ class EmojiDataPasta {
             );
         }
         
+        // Reset display limit when searching
+        this.emojiDisplayLimit = 100;
         this.renderEmojiTable();
     }
 
@@ -743,8 +777,8 @@ class EmojiDataPasta {
             return;
         }
 
-        // Limit to first 500 results for performance
-        const displayEmojis = this.filteredEmojis.slice(0, 500);
+        // Display only up to the current limit
+        const displayEmojis = this.filteredEmojis.slice(0, this.emojiDisplayLimit);
         
         tbody.innerHTML = displayEmojis.map((emoji, index) => {
             // Get actual emoji index in original data
@@ -761,8 +795,12 @@ class EmojiDataPasta {
                 }
             }
             
+            // Highlight current emoji
+            const isCurrentEmoji = originalIndex === this.currentEmojiIndex;
+            const rowClass = isCurrentEmoji ? 'current-emoji' : '';
+            
             return `
-                <tr onclick="emojiPasta.selectEmojiFromBrowser(${originalIndex})" title="Click to select this emoji">
+                <tr class="${rowClass}" onclick="emojiPasta.selectEmojiFromBrowser(${originalIndex})" title="Click to select this emoji">
                     <td>${emojiChar}</td>
                     <td>${emoji.name || 'N/A'}</td>
                     <td>:${emoji.short_name || 'unknown'}:</td>
@@ -775,10 +813,13 @@ class EmojiDataPasta {
         }).join('');
 
         const totalResults = this.filteredEmojis.length;
-        const displayCount = Math.min(totalResults, 500);
-        resultsSpan.textContent = totalResults > 500 
-            ? `${displayCount} of ${totalResults} results (showing first 500)`
-            : `${totalResults} results`;
+        const displayCount = displayEmojis.length;
+        
+        if (displayCount < totalResults) {
+            resultsSpan.textContent = `Showing ${displayCount} of ${totalResults} results (scroll for more)`;
+        } else {
+            resultsSpan.textContent = `${totalResults} results`;
+        }
     }
 
     applyPreset(presetKey) {
@@ -1195,6 +1236,26 @@ class EmojiDataPasta {
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Theme management
+    applyTheme() {
+        const root = document.documentElement;
+        const themeIcon = document.querySelector('.theme-icon');
+        
+        if (this.theme === 'light') {
+            root.classList.add('light');
+            themeIcon.textContent = '☀️';
+        } else {
+            root.classList.remove('light');
+            themeIcon.textContent = '🌙';
+        }
+    }
+
+    toggleTheme() {
+        this.theme = this.theme === 'dark' ? 'light' : 'dark';
+        this.applyTheme();
+        localStorage.setItem('emoji-pasta-theme', this.theme);
     }
 }
 
