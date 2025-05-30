@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji Data Pasta - JSON Field Editor</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🍝 Emoji Data Pasta</h1>
+            <p>Bulk edit emoji JSON fields with ease</p>
+        </header>
+
+        <div class="toolbar">
+            <div class="controls">
+                <button id="loadFile" class="btn btn-primary">Load JSON File</button>
+                <button id="saveFile" class="btn btn-success">Save Edited Data</button>
+                <span class="separator">|</span>
+                <span class="data-info">
+                    <span id="totalCount">0 emojis loaded</span>
+                </span>
+            </div>
+            <div class="actions">
+                <button id="selectAll" class="btn btn-secondary">Select All Fields</button>
+                <button id="selectNone" class="btn btn-secondary">Select None</button>
+                <button id="applyChanges" class="btn btn-warning">Apply Changes</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Panel - Original Structure -->
+            <div class="panel sample-panel">
+                <div class="panel-header">
+                    <h2>Original Emoji Structure</h2>
+                    <span class="sample-info">Sample from your data</span>
+                </div>
+                <div class="json-view" id="originalStructure">
+                    <div class="loading">Load a JSON file to see the emoji structure</div>
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Middle Panel - Field Manager -->
+            <div class="panel field-manager-panel">
+                <div class="panel-header">
+                    <h2>Field Manager</h2>
+                    <span class="field-counter" id="fieldCounter">0 fields</span>
+                </div>
+                <div class="field-manager" id="fieldManager">
+                    <div class="no-data">Load emoji data to manage fields</div>
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Right Panel - Output Preview -->
+            <div class="panel output-panel">
+                <div class="panel-header">
+                    <h2>Output Structure</h2>
+                    <span class="output-info">How your data will look</span>
+                </div>
+                <div class="json-view" id="outputStructure">
+                    <div class="loading">Make field changes to see output preview</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div class="settings-panel" id="settingsPanel">
+            <div class="settings-header">
+                <h3>Export Settings</h3>
+                <button id="closeSettings" class="btn btn-small">×</button>
+            </div>
+            <div class="settings-content">
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="includeEmptyFields" checked>
+                        Include empty/null fields in output
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="prettifyJson" checked>
+                        Pretty format JSON output
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="includeStats" checked>
+                        Include processing statistics
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label for="customFilename">Output filename:</label>
+                    <input type="text" id="customFilename" value="emoji-edited.json">
+                </div>
+                <div class="setting-group">
+                    <label for="arrayName">Wrap in array named:</label>
+                    <input type="text" id="arrayName" placeholder="Leave empty for root array">
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Modal -->
+        <div class="progress-modal" id="progressModal">
+            <div class="progress-content">
+                <h3>Processing Emojis...</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">0 / 0 emojis processed</div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept=".json" style="display: none;">
+    
+    <script src="script.js"></script>
+</body>
+</html> 
