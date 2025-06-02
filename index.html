@@ -132,12 +132,22 @@
                 <div class="panel-header">
                     <h2>Field Manager</h2>
                     <div class="field-controls">
-                        <select id="fieldPresets" class="preset-select">
-                            <option value="">Select Preset...</option>
-                            <option value="minimal">Minimal</option>
-                            <option value="essential">Essential</option>
-                            <option value="complete">Complete</option>
-                        </select>
+                        <div class="preset-controls">
+                            <label for="fieldPresets" class="preset-label">
+                                Field Presets
+                                <div class="preset-info-icon" title="Choose predefined field combinations for different use cases">ℹ️</div>
+                            </label>
+                            <div class="preset-actions">
+                                <select id="fieldPresets" class="preset-select">
+                                    <option value="">Select Preset...</option>
+                                    <option value="minimal">Minimal</option>
+                                    <option value="essential">Essential</option>
+                                    <option value="complete">Complete</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                                <button id="resetPresets" class="btn btn-small" title="Reset to default state">🔄</button>
+                            </div>
+                        </div>
                         <span class="field-counter" id="fieldCounter">0 fields</span>
                     </div>
                 </div>

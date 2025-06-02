@@ -10,6 +10,8 @@ class EmojiDataPasta {
         this.expandedFields = new Set();
         this.fieldDescriptions = this.getFieldDescriptions();
         this.presets = this.getFieldPresets();
+        this.currentPreset = '';
+        this.customPreset = this.loadCustomPreset();
         this.settings = {
             includeEmptyFields: true,
             prettifyJson: true,
@@ -74,17 +76,17 @@ class EmojiDataPasta {
         return {
             'minimal': {
                 name: 'Minimal',
-                description: 'Essential fields for basic emoji data',
-                fields: ['unified', 'category', 'name', 'short_name', 'short_names', 'skin_variations', 'sort_order', 'subcategory']
+                description: 'Core essentials: name, category, codes, and sorting - perfect for basic emoji displays',
+                fields: ['name', 'short_names', 'category', 'sort_order', 'unified']
             },
             'essential': {
                 name: 'Essential',
-                description: 'Core fields including image and platform support',
+                description: 'Everything from minimal plus image data and platform support - ideal for most apps',
                 fields: ['unified', 'category', 'name', 'short_name', 'short_names', 'skin_variations', 'sort_order', 'subcategory', 'has_img_apple', 'has_img_google', 'has_img_twitter', 'has_img_facebook', 'image', 'sheet_x', 'sheet_y']
             },
             'complete': {
                 name: 'Complete',
-                description: 'All available fields',
+                description: 'All available fields including legacy codes and metadata - for comprehensive emoji databases',
                 fields: [] // Will be populated with all available fields
             }
         };
@@ -101,6 +103,7 @@ class EmojiDataPasta {
         document.getElementById('selectNone').addEventListener('click', () => this.selectNoFields());
         document.getElementById('applyChanges').addEventListener('click', () => this.applyChanges());
         document.getElementById('fieldPresets').addEventListener('change', (e) => this.applyPreset(e.target.value));
+        document.getElementById('resetPresets').addEventListener('click', () => this.resetPresets());
 
         // Emoji navigation
         document.getElementById('emojiIcon').addEventListener('click', () => this.nextEmoji());
@@ -292,6 +295,9 @@ class EmojiDataPasta {
 
         // Initially select all fields
         this.selectedFields = new Set(Object.keys(this.fieldSchema));
+        
+        // Update preset dropdown after analyzing fields
+        setTimeout(() => this.updatePresetDropdown(), 0);
     }
 
     analyzeEmojiFields(emoji) {
@@ -823,9 +829,26 @@ class EmojiDataPasta {
     }
 
     applyPreset(presetKey) {
-        if (!presetKey || !this.presets[presetKey]) return;
+        if (!presetKey) return;
+
+        if (presetKey === 'custom') {
+            // Apply saved custom preset
+            const availableCustomFields = this.customPreset.filter(field => this.fieldSchema[field]);
+            this.selectedFields = new Set(availableCustomFields);
+            this.currentPreset = 'custom';
+            
+            this.renderFieldManager();
+            this.renderOriginalStructure();
+            this.renderOutputPreview();
+            
+            this.showMessage(`Applied custom preset: ${this.selectedFields.size} fields selected`, 'success');
+            return;
+        }
+
+        if (!this.presets[presetKey]) return;
 
         const preset = this.presets[presetKey];
+        this.currentPreset = presetKey;
         
         if (presetKey === 'complete') {
             this.selectedFields = new Set(Object.keys(this.fieldSchema));
@@ -839,7 +862,7 @@ class EmojiDataPasta {
         this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
         
-        this.showMessage(`Applied "${preset.name}" preset: ${this.selectedFields.size} fields selected`, 'success');
+        this.showMessage(`Applied "${preset.name}" preset: ${preset.description}`, 'success');
     }
 
     createFilteredEmoji(originalEmoji) {
@@ -914,6 +937,7 @@ class EmojiDataPasta {
         this.renderFieldManager();
         this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
+        this.updatePresetDropdown(); // Update preset dropdown based on current selection
     }
 
     selectAllFields() {
@@ -921,6 +945,7 @@ class EmojiDataPasta {
         this.renderFieldManager();
         this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
+        this.updatePresetDropdown(); // Update preset dropdown
     }
 
     selectNoFields() {
@@ -928,6 +953,7 @@ class EmojiDataPasta {
         this.renderFieldManager();
         this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
+        this.updatePresetDropdown(); // Update preset dropdown
     }
 
     applyChanges() {
@@ -1256,6 +1282,80 @@ class EmojiDataPasta {
         this.theme = this.theme === 'dark' ? 'light' : 'dark';
         this.applyTheme();
         localStorage.setItem('emoji-pasta-theme', this.theme);
+    }
+
+    resetPresets() {
+        this.selectedFields = new Set();
+        this.currentPreset = '';
+        document.getElementById('fieldPresets').value = '';
+        this.renderFieldManager();
+        this.renderOriginalStructure();
+        this.renderOutputPreview();
+        this.showMessage('Reset to default state - no fields selected', 'info');
+    }
+
+    loadCustomPreset() {
+        try {
+            const saved = localStorage.getItem('emoji-pasta-custom-preset');
+            return saved ? JSON.parse(saved) : [];
+        } catch (error) {
+            console.warn('Failed to load custom preset from localStorage:', error);
+            return [];
+        }
+    }
+
+    saveCustomPreset() {
+        try {
+            const customFields = Array.from(this.selectedFields);
+            localStorage.setItem('emoji-pasta-custom-preset', JSON.stringify(customFields));
+            this.customPreset = customFields;
+        } catch (error) {
+            console.warn('Failed to save custom preset to localStorage:', error);
+        }
+    }
+
+    updatePresetDropdown() {
+        const dropdown = document.getElementById('fieldPresets');
+        
+        // Check if current selection matches any preset
+        const currentFields = Array.from(this.selectedFields).sort();
+        
+        // Check built-in presets
+        for (const [key, preset] of Object.entries(this.presets)) {
+            if (key === 'complete') {
+                const allFields = Object.keys(this.fieldSchema).sort();
+                if (JSON.stringify(currentFields) === JSON.stringify(allFields)) {
+                    this.currentPreset = key;
+                    dropdown.value = key;
+                    return;
+                }
+            } else {
+                const presetFields = preset.fields.filter(field => this.fieldSchema[field]).sort();
+                if (JSON.stringify(currentFields) === JSON.stringify(presetFields)) {
+                    this.currentPreset = key;
+                    dropdown.value = key;
+                    return;
+                }
+            }
+        }
+        
+        // Check if it matches saved custom preset
+        const customFields = this.customPreset.filter(field => this.fieldSchema[field]).sort();
+        if (JSON.stringify(currentFields) === JSON.stringify(customFields)) {
+            this.currentPreset = 'custom';
+            dropdown.value = 'custom';
+            return;
+        }
+        
+        // If no match, it's a new custom selection
+        if (this.selectedFields.size > 0) {
+            this.currentPreset = 'custom';
+            dropdown.value = 'custom';
+            this.saveCustomPreset();
+        } else {
+            this.currentPreset = '';
+            dropdown.value = '';
+        }
     }
 }
 
