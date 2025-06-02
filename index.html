@@ -31,13 +31,14 @@
             <div class="controls">
                 <button id="loadFile" class="btn btn-primary">Load JSON File</button>
                 <button id="saveFile" class="btn btn-success">Save Edited Data</button>
+                <button id="resetApp" class="btn btn-danger" title="Reset all data and clear saved state">🗑️ Reset</button>
                 <span class="separator">|</span>
                 <span class="data-info">
                     <span id="totalCount">0 emojis loaded</span>
                 </span>
             </div>
             <div class="actions">
-                <button id="toggleEmojiTable" class="btn btn-secondary">🔍 Browse Emojis</button>
+                <button id="toggleEmojiTable" class="btn btn-secondary">🔍 Browse Emoji Data</button>
                 <button id="selectAll" class="btn btn-secondary">Select All Fields</button>
                 <button id="selectNone" class="btn btn-secondary">Select None</button>
                 <button id="applyChanges" class="btn btn-warning">Apply Changes</button>
@@ -48,16 +49,16 @@
         <div class="emoji-browser-modal" id="emojiBrowserModal">
             <div class="emoji-browser-content">
                 <div class="emoji-browser-header">
-                    <h3>🔍 Emoji Browser</h3>
+                    <h3>🔍 Browse Emoji Data</h3>
                     <div class="search-controls">
                         <input type="text" id="emojiSearch" placeholder="Search emojis (name, category, short_name...)">
-                        <span class="search-tip">Click any row to select that emoji</span>
+                        <span class="search-tip">Showing current output data - click any row to select that emoji</span>
                         <button id="closeEmojiBrowser" class="btn btn-small">×</button>
                     </div>
                 </div>
                 <div class="emoji-table-container" id="emojiTableContainer">
                     <table class="emoji-table" id="emojiTable">
-                        <thead>
+                        <thead id="emojiTableHead">
                             <tr>
                                 <th>Emoji</th>
                                 <th>Name</th>
@@ -98,6 +99,7 @@
                         <span class="emoji-index" id="emojiIndex">0 / 0</span>
                         <button class="btn btn-small" id="nextEmoji">→</button>
                         <button class="btn btn-small" id="randomEmoji">🎲</button>
+                        <button class="btn btn-small" id="quickBrowse" title="Browse Emoji Data">🔍</button>
                     </div>
                 </div>
             </div>

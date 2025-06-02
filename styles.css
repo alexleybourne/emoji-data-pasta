@@ -80,16 +80,20 @@ body {
 .header {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-primary);
-    padding: 0.75rem 2rem;
+    padding: 0.5rem 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 60px;
+    min-height: 50px;
     flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
 }
 
 .header-left h1 {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
@@ -98,13 +102,13 @@ body {
 .header-right {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
 }
 
 .attribution {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--text-secondary);
-    line-height: 1.4;
+    line-height: 1.3;
     text-align: right;
 }
 
@@ -138,14 +142,18 @@ body {
 /* Toolbar */
 .toolbar {
     background: var(--bg-secondary);
-    padding: 1rem 2rem;
+    padding: 0.75rem 1.5rem;
     border-bottom: 1px solid var(--border-primary);
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.75rem;
     flex-shrink: 0;
+    position: sticky;
+    top: 50px;
+    z-index: 90;
+    backdrop-filter: blur(10px);
 }
 
 .controls {
@@ -305,30 +313,33 @@ input[type="text"] {
     flex: 1;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 120px);
-    overflow: hidden;
+    min-height: 0;
 }
 
-/* Top Section - Emoji Display (Compact) */
+/* Top Section - Emoji Display (Compact & Sticky) */
 .emoji-section {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-primary);
-    padding: 1rem 1.5rem;
-    min-height: 70px;
+    padding: 0.75rem 1.5rem;
+    min-height: 60px;
     flex-shrink: 0;
+    position: sticky;
+    top: 100px;
+    z-index: 80;
+    backdrop-filter: blur(10px);
 }
 
 .emoji-display {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1.5rem;
+    gap: 1rem;
     max-width: 1200px;
     margin: 0 auto;
 }
 
 .emoji-icon {
-    font-size: 2rem;
+    font-size: 1.75rem;
     line-height: 1;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -346,33 +357,33 @@ input[type="text"] {
 }
 
 .emoji-name {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.2rem;
 }
 
 .emoji-variant-info {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
 }
 
 .variant-label {
     color: var(--text-secondary);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 500;
 }
 
 .variant-select {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
-    border-radius: 6px;
-    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
     color: var(--text-primary);
-    font-size: 0.7rem;
-    min-width: 100px;
+    font-size: 0.65rem;
+    min-width: 90px;
 }
 
 .variant-select:focus {
@@ -384,27 +395,28 @@ input[type="text"] {
 .emoji-navigation {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
     flex-shrink: 0;
 }
 
 .emoji-index {
     background: var(--bg-tertiary);
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
     color: var(--text-secondary);
-    min-width: 70px;
+    min-width: 60px;
     text-align: center;
     border: 1px solid var(--border-primary);
 }
 
-/* Middle Section - JSON Split Panels (60% height) */
+/* Middle Section - JSON Split Panels with Scrolling */
 .json-section {
     display: flex;
-    flex: 0 0 60%;
+    flex: 1;
     min-height: 0;
+    height: 60vh;
 }
 
 .json-panel {
@@ -426,19 +438,20 @@ input[type="text"] {
     flex-shrink: 0;
 }
 
-/* Bottom Section - Field Manager (40% height) */
+/* Bottom Section - Field Manager with Scrolling */
 .field-section {
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;
-    flex: 0 0 40%;
+    flex: 1;
     min-height: 0;
+    height: 40vh;
 }
 
 .panel-header {
     background: var(--bg-tertiary);
-    padding: 1rem;
+    padding: 0.75rem;
     border-bottom: 1px solid var(--border-primary);
     display: flex;
     justify-content: space-between;
@@ -447,7 +460,7 @@ input[type="text"] {
 }
 
 .panel-header h2 {
-    font-size: 1rem;
+    font-size: 0.9rem;
     color: var(--text-primary);
     font-weight: 600;
 }
@@ -533,27 +546,29 @@ input[type="text"] {
     border: 1px solid var(--success-border);
 }
 
-/* JSON Views and Field Manager - Scrollable */
+/* JSON Views and Field Manager - Enhanced Scrolling */
 .json-view, .field-manager {
     flex: 1;
     overflow-y: auto;
-    padding: 1rem;
+    overflow-x: hidden;
+    padding: 0.75rem;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 0.875rem;
-    line-height: 1.5;
+    font-size: 0.8rem;
+    line-height: 1.4;
 }
 
 .json-view::-webkit-scrollbar, .field-manager::-webkit-scrollbar {
-    width: 6px;
+    width: 4px;
 }
 
 .json-view::-webkit-scrollbar-track, .field-manager::-webkit-scrollbar-track {
     background: var(--bg-tertiary);
+    border-radius: 2px;
 }
 
 .json-view::-webkit-scrollbar-thumb, .field-manager::-webkit-scrollbar-thumb {
     background: var(--border-primary);
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 .json-view::-webkit-scrollbar-thumb:hover, .field-manager::-webkit-scrollbar-thumb:hover {
@@ -562,11 +577,13 @@ input[type="text"] {
 
 .json-code {
     background: var(--bg-tertiary);
-    border-radius: 8px;
-    padding: 1rem;
+    border-radius: 6px;
+    padding: 0.75rem;
     border: 1px solid var(--border-primary);
     white-space: pre-wrap;
     word-wrap: break-word;
+    font-size: 0.75rem;
+    line-height: 1.3;
 }
 
 /* JSON Syntax Highlighting */
@@ -625,19 +642,42 @@ input[type="text"] {
     text-decoration: line-through;
 }
 
+/* Tighter spacing for removed fields */
 .json-removed-line {
     background: rgba(239, 68, 68, 0.05);
-    margin: 0 -1rem;
-    padding: 0 1rem;
-    border-left: 3px solid var(--danger);
+    padding: 0 0.25rem;
+    border-left: 2px solid var(--danger);
+    line-height: 0.75rem;
+    font-size: 0.75rem;
+    opacity: 0.6;
+    border-radius: 2px;
+}
+
+.json-key.removed,
+.json-string.removed,
+.json-number.removed,
+.json-boolean.removed,
+.json-null.removed {
+    line-height: 0.75rem;
+    font-size: 0.75rem;
+    opacity: 0.6;
+}
+
+/* Reduced spacing rules since spans are now inline */
+.json-code .json-removed-line + br {
+    display: none;
+}
+
+.json-code br + .json-removed-line + br {
+    display: none;
 }
 
 /* Field Manager Components - Two Column Layout */
 .field-group {
-    margin-bottom: 1.5rem;
-    padding: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
     background: var(--bg-tertiary);
-    border-radius: 8px;
+    border-radius: 6px;
     border: 1px solid var(--border-primary);
 }
 
@@ -645,15 +685,15 @@ input[type="text"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
     border-bottom: 1px solid var(--border-primary);
 }
 
 .field-group-title {
     font-weight: 600;
     color: var(--text-primary);
-    font-size: 1rem;
+    font-size: 0.9rem;
 }
 
 .field-group-count {
@@ -668,26 +708,26 @@ input[type="text"] {
 .field-list {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 .field-item {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
+    gap: 0.5rem;
+    padding: 0.5rem;
     background: var(--bg-secondary);
-    border-radius: 6px;
+    border-radius: 4px;
     border: 1px solid var(--border-primary);
     transition: all 0.2s ease;
     position: relative;
 }
 
 .field-item.sub-field {
-    margin-left: 2rem;
+    margin-left: 1.5rem;
     background: var(--bg-elevated);
-    border-left: 3px solid var(--accent-primary);
-    border-radius: 0 6px 6px 0;
+    border-left: 2px solid var(--accent-primary);
+    border-radius: 0 4px 4px 0;
     grid-column: span 2;
 }
 
@@ -726,19 +766,19 @@ input[type="text"] {
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     font-weight: 500;
     color: var(--text-primary);
-    font-size: 0.875rem;
+    font-size: 0.75rem;
 }
 
 .field-expand-icon {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    border-radius: 4px;
+    border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     cursor: pointer;
     transition: all 0.2s ease;
     font-family: monospace;
@@ -757,15 +797,15 @@ input[type="text"] {
 }
 
 .field-info-icon {
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
     background: var(--info-bg);
     color: var(--info-text);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6rem;
+    font-size: 0.5rem;
     font-weight: bold;
     cursor: help;
     transition: all 0.2s ease;
@@ -781,9 +821,9 @@ input[type="text"] {
 .field-type {
     background: rgba(245, 158, 11, 0.1);
     color: var(--warning);
-    padding: 0.125rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.6rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.55rem;
     font-weight: 600;
     text-transform: uppercase;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
@@ -793,9 +833,9 @@ input[type="text"] {
 .field-usage {
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    padding: 0.125rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.6rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.55rem;
     font-weight: 500;
     border: 1px solid var(--border-primary);
 }
@@ -1201,7 +1241,7 @@ input[type="text"] {
     .emoji-display {
         flex-direction: column;
         text-align: center;
-        gap: 1rem;
+        gap: 0.75rem;
     }
     
     .emoji-info {
@@ -1210,11 +1250,11 @@ input[type="text"] {
     
     .json-section {
         flex-direction: column;
-        flex: 0 0 50%;
+        height: 50vh;
     }
     
     .field-section {
-        flex: 0 0 50%;
+        height: 50vh;
     }
     
     .json-panel.input-panel,
@@ -1223,7 +1263,7 @@ input[type="text"] {
     }
     
     .panel-divider {
-        height: 2px;
+        height: 1px;
         width: auto;
         background: var(--border-primary);
     }
@@ -1233,6 +1273,7 @@ input[type="text"] {
     .toolbar {
         flex-direction: column;
         align-items: stretch;
+        padding: 0.5rem 1rem;
     }
     
     .controls, .actions {
@@ -1240,29 +1281,43 @@ input[type="text"] {
     }
     
     .header {
-        padding: 1rem;
+        padding: 0.4rem 1rem;
         flex-direction: column;
-        gap: 0.5rem;
+        gap: 0.4rem;
         align-items: center;
+        min-height: 40px;
     }
     
     .header-right {
         flex-direction: column-reverse;
-        gap: 0.5rem;
+        gap: 0.4rem;
         align-items: center;
     }
     
     .attribution {
         text-align: center;
+        font-size: 0.65rem;
+    }
+    
+    .emoji-section {
+        padding: 0.5rem 1rem;
+        min-height: 50px;
+    }
+    
+    .json-section {
+        height: 45vh;
+    }
+    
+    .field-section {
+        height: 55vh;
+    }
+    
+    .json-view, .field-manager {
+        font-size: 0.75rem;
     }
     
     .settings-panel {
         width: 95vw;
-    }
-    
-    .emoji-section {
-        padding: 1rem;
-        min-height: 60px;
     }
     
     .emoji-icon {
@@ -1270,7 +1325,7 @@ input[type="text"] {
     }
     
     .emoji-name {
-        font-size: 0.875rem;
+        font-size: 0.85rem;
     }
     
     .emoji-navigation {
@@ -1283,6 +1338,7 @@ input[type="text"] {
     
     .field-item.sub-field {
         grid-column: span 1;
+        margin-left: 1rem;
     }
 
     .emoji-browser-content {
@@ -1295,12 +1351,12 @@ input[type="text"] {
     }
     
     .emoji-table {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
     }
     
     .emoji-table th,
     .emoji-table td {
-        padding: 0.5rem;
+        padding: 0.4rem;
     }
 }
 

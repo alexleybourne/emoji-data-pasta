@@ -28,6 +28,9 @@ class EmojiDataPasta {
         this.applyTheme();
         
         this.initializeEventListeners();
+        
+        // Load persisted state first, then default data
+        this.loadPersistedState();
         this.loadDefaultData();
     }
 
@@ -96,6 +99,7 @@ class EmojiDataPasta {
         // File operations
         document.getElementById('loadFile').addEventListener('click', () => this.loadFile());
         document.getElementById('saveFile').addEventListener('click', () => this.showSettingsPanel());
+        document.getElementById('resetApp').addEventListener('click', () => this.resetApp());
         document.getElementById('fileInput').addEventListener('change', (e) => this.handleFileLoad(e));
 
         // Field management
@@ -110,6 +114,7 @@ class EmojiDataPasta {
         document.getElementById('prevEmoji').addEventListener('click', () => this.prevEmoji());
         document.getElementById('nextEmoji').addEventListener('click', () => this.nextEmoji());
         document.getElementById('randomEmoji').addEventListener('click', () => this.randomEmoji());
+        document.getElementById('quickBrowse').addEventListener('click', () => this.showEmojiBrowser());
         document.getElementById('variantSelect').addEventListener('change', (e) => this.selectVariant(e.target.value));
         document.getElementById('resetVariant').addEventListener('click', () => this.resetVariant());
 
@@ -124,25 +129,31 @@ class EmojiDataPasta {
         document.getElementById('cancelExport').addEventListener('click', () => this.hideSettingsPanel());
         document.getElementById('saveSettings').addEventListener('change', (e) => {
             this.settings.saveSettings = e.target.checked;
+            this.saveState();
         });
         document.getElementById('includeEmptyFields').addEventListener('change', (e) => {
             this.settings.includeEmptyFields = e.target.checked;
             this.updateFileSizePreview();
+            this.saveState();
         });
         document.getElementById('prettifyJson').addEventListener('change', (e) => {
             this.settings.prettifyJson = e.target.checked;
             this.updateFileSizePreview();
+            this.saveState();
         });
         document.getElementById('includeStats').addEventListener('change', (e) => {
             this.settings.includeStats = e.target.checked;
             this.updateFileSizePreview();
+            this.saveState();
         });
         document.getElementById('customFilename').addEventListener('input', (e) => {
             this.settings.filename = e.target.value;
+            this.saveState();
         });
         document.getElementById('arrayName').addEventListener('input', (e) => {
             this.settings.arrayName = e.target.value;
             this.updateFileSizePreview();
+            this.saveState();
         });
 
         // Keyboard shortcuts
@@ -250,12 +261,19 @@ class EmojiDataPasta {
 
         this.analyzeFieldStructure();
         this.filteredEmojis = [...this.originalData];
-        this.currentEmojiIndex = 0;
-        this.currentVariant = 'default';
         
-        // Restore saved field selections if available
+        // Restore navigation state from localStorage if available and no file-specific settings
+        if (!hasRestorableSettings && this.persistedSelectedFields) {
+            this.currentEmojiIndex = Math.min(this.currentEmojiIndex, this.originalData.length - 1);
+            this.currentVariant = this.currentVariant || 'default';
+        } else {
+            this.currentEmojiIndex = 0;
+            this.currentVariant = 'default';
+        }
+        
+        // Restore field selections priority: file settings > localStorage > default
         if (hasRestorableSettings && this.savedFieldSelections) {
-            // Only restore selections for fields that still exist
+            // File-specific settings take priority
             this.selectedFields = new Set();
             this.savedFieldSelections.forEach(field => {
                 if (this.fieldSchema[field]) {
@@ -263,7 +281,6 @@ class EmojiDataPasta {
                 }
             });
             
-            // Restore expanded state
             this.expandedFields = new Set();
             this.savedExpandedFields.forEach(field => {
                 if (this.fieldSchema[field]) {
@@ -271,13 +288,31 @@ class EmojiDataPasta {
                 }
             });
             
-            this.showMessage(`Loaded data with restored settings: ${this.selectedFields.size} fields selected`, 'info');
+            this.showMessage(`Loaded data with restored file settings: ${this.selectedFields.size} fields selected`, 'info');
+        } else if (this.persistedSelectedFields && this.persistedSelectedFields.length > 0) {
+            // Use localStorage state if available
+            this.selectedFields = new Set();
+            this.persistedSelectedFields.forEach(field => {
+                if (this.fieldSchema[field]) {
+                    this.selectedFields.add(field);
+                }
+            });
+            
+            this.expandedFields = new Set();
+            this.persistedExpandedFields.forEach(field => {
+                if (this.fieldSchema[field]) {
+                    this.expandedFields.add(field);
+                }
+            });
+            
+            this.showMessage(`Loaded data with restored session state: ${this.selectedFields.size} fields selected`, 'info');
         } else {
-            // Initially select all fields for new data
+            // Default: select all fields for new data
             this.selectedFields = new Set(Object.keys(this.fieldSchema));
         }
         
         this.updateDisplay();
+        this.saveState(); // Save state after loading data
     }
 
     analyzeFieldStructure() {
@@ -476,6 +511,7 @@ class EmojiDataPasta {
         this.renderOriginalStructure();
         this.renderOutputPreview();
         this.showMessage(`Selected: ${this.originalData[emojiIndex].name}`, 'success');
+        this.saveState();
     }
 
     prevEmoji() {
@@ -489,6 +525,7 @@ class EmojiDataPasta {
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
         this.renderOutputPreview();
+        this.saveState();
     }
 
     nextEmoji() {
@@ -502,6 +539,7 @@ class EmojiDataPasta {
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
         this.renderOutputPreview();
+        this.saveState();
     }
 
     randomEmoji() {
@@ -512,6 +550,7 @@ class EmojiDataPasta {
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
         this.renderOutputPreview();
+        this.saveState();
     }
 
     renderOriginalStructure() {
@@ -569,7 +608,7 @@ class EmojiDataPasta {
                 return line.includes(`"${finalKey}"`);
             });
             if (hasRemovedField) {
-                return `<div class="json-removed-line">${line}</div>`;
+                return `<span class="json-removed-line">${line}</span>`;
             }
             return line;
         });
@@ -685,6 +724,7 @@ class EmojiDataPasta {
             this.expandedFields.add(fieldName);
         }
         this.renderFieldManager();
+        this.saveState();
     }
 
     renderOutputPreview() {
@@ -710,6 +750,15 @@ class EmojiDataPasta {
     showEmojiBrowser() {
         document.getElementById('emojiBrowserModal').classList.add('active');
         this.emojiDisplayLimit = 100; // Reset display limit
+        
+        // Initialize with all emojis (clear any previous search)
+        this.filteredEmojis = [...this.originalData];
+        
+        // Clear search input
+        document.getElementById('emojiSearch').value = '';
+        
+        // Prepare filtered data for all emojis
+        this.prepareFilteredEmojiData();
         this.renderEmojiTable();
         
         // Add scroll listener for infinite loading
@@ -720,6 +769,16 @@ class EmojiDataPasta {
         setTimeout(() => {
             document.addEventListener('click', this.closeEmojiBrowserOnClickOutside);
         }, 100);
+    }
+
+    prepareFilteredEmojiData() {
+        // Create filtered data for all emojis based on current field selections
+        this.browserFilteredData = this.originalData.map(emoji => {
+            return this.createFilteredEmoji(emoji);
+        });
+        
+        // Don't reset filteredEmojis here - it may contain search results
+        // this.filteredEmojis should be managed by search and showEmojiBrowser
     }
 
     hideEmojiBrowser() {
@@ -770,31 +829,59 @@ class EmojiDataPasta {
         
         // Reset display limit when searching
         this.emojiDisplayLimit = 100;
+        
+        // Refresh filtered data for the browser (but don't reset search results)
+        this.prepareFilteredEmojiData();
         this.renderEmojiTable();
     }
 
     renderEmojiTable() {
+        const thead = document.getElementById('emojiTableHead');
         const tbody = document.getElementById('emojiTableBody');
         const resultsSpan = document.getElementById('searchResults');
         
         if (this.filteredEmojis.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #8892b0;">No emojis found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="100%" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No emojis found</td></tr>';
             resultsSpan.textContent = '0 results';
             return;
         }
 
+        // Create dynamic table headers based on selected fields
+        const selectedFieldsArray = Array.from(this.selectedFields).filter(field => {
+            // Exclude complex nested fields from table display
+            return !field.includes('skin_variations.') && field !== 'skin_variations';
+        });
+        
+        // Always show emoji first, then other selected fields
+        const displayFields = ['emoji', ...selectedFieldsArray.filter(field => field !== 'unified')];
+        
+        // Build table header
+        thead.innerHTML = `
+            <tr>
+                ${displayFields.map(field => {
+                    const fieldName = field === 'emoji' ? 'Emoji' : 
+                                     field === 'short_names' ? 'Short Names' :
+                                     field === 'sort_order' ? 'Sort Order' :
+                                     field === 'added_in' ? 'Added In' :
+                                     field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    return `<th>${fieldName}</th>`;
+                }).join('')}
+            </tr>
+        `;
+
         // Display only up to the current limit
         const displayEmojis = this.filteredEmojis.slice(0, this.emojiDisplayLimit);
         
-        tbody.innerHTML = displayEmojis.map((emoji, index) => {
+        tbody.innerHTML = displayEmojis.map((originalEmoji, index) => {
             // Get actual emoji index in original data
-            const originalIndex = this.originalData.indexOf(emoji);
+            const originalIndex = this.originalData.indexOf(originalEmoji);
+            const filteredEmoji = this.browserFilteredData[originalIndex];
             
             // Try to render actual emoji
             let emojiChar = '📝';
-            if (emoji.unified) {
+            if (originalEmoji.unified) {
                 try {
-                    const codePoints = emoji.unified.split('-').map(hex => parseInt(hex, 16));
+                    const codePoints = originalEmoji.unified.split('-').map(hex => parseInt(hex, 16));
                     emojiChar = String.fromCodePoint(...codePoints);
                 } catch (e) {
                     emojiChar = '📝';
@@ -805,15 +892,45 @@ class EmojiDataPasta {
             const isCurrentEmoji = originalIndex === this.currentEmojiIndex;
             const rowClass = isCurrentEmoji ? 'current-emoji' : '';
             
+            // Build table cells
+            const cells = displayFields.map(field => {
+                if (field === 'emoji') {
+                    return `<td style="font-size: 1.2em; text-align: center;">${emojiChar}</td>`;
+                }
+                
+                const value = filteredEmoji[field];
+                if (value === undefined || value === null) {
+                    return '<td style="color: var(--text-tertiary); font-style: italic;">—</td>';
+                }
+                
+                if (Array.isArray(value)) {
+                    if (value.length === 0) {
+                        return '<td style="color: var(--text-tertiary); font-style: italic;">[]</td>';
+                    }
+                    const displayValue = value.length > 3 ? 
+                        `[${value.slice(0, 3).join(', ')}... +${value.length - 3}]` :
+                        `[${value.join(', ')}]`;
+                    return `<td title="${value.join(', ')}">${displayValue}</td>`;
+                }
+                
+                if (typeof value === 'object') {
+                    const keys = Object.keys(value);
+                    const displayValue = keys.length > 2 ? 
+                        `{${keys.slice(0, 2).join(', ')}... +${keys.length - 2}}` :
+                        `{${keys.join(', ')}}`;
+                    return `<td title="${JSON.stringify(value)}">${displayValue}</td>`;
+                }
+                
+                if (typeof value === 'string' && value.length > 30) {
+                    return `<td title="${value}">${value.substring(0, 30)}...</td>`;
+                }
+                
+                return `<td>${value}</td>`;
+            });
+            
             return `
                 <tr class="${rowClass}" onclick="emojiPasta.selectEmojiFromBrowser(${originalIndex})" title="Click to select this emoji">
-                    <td>${emojiChar}</td>
-                    <td>${emoji.name || 'N/A'}</td>
-                    <td>:${emoji.short_name || 'unknown'}:</td>
-                    <td>${emoji.category || 'N/A'}</td>
-                    <td>${emoji.subcategory || 'N/A'}</td>
-                    <td>${emoji.unified || 'N/A'}</td>
-                    <td>${emoji.added_in || 'N/A'}</td>
+                    ${cells.join('')}
                 </tr>
             `;
         }).join('');
@@ -842,6 +959,8 @@ class EmojiDataPasta {
             this.renderOutputPreview();
             
             this.showMessage(`Applied custom preset: ${this.selectedFields.size} fields selected`, 'success');
+            this.refreshBrowserIfOpen(); // Refresh browser if open
+            this.saveState();
             return;
         }
 
@@ -863,6 +982,8 @@ class EmojiDataPasta {
         this.renderOutputPreview();
         
         this.showMessage(`Applied "${preset.name}" preset: ${preset.description}`, 'success');
+        this.refreshBrowserIfOpen(); // Refresh browser if open
+        this.saveState();
     }
 
     createFilteredEmoji(originalEmoji) {
@@ -938,6 +1059,8 @@ class EmojiDataPasta {
         this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
         this.updatePresetDropdown(); // Update preset dropdown based on current selection
+        this.refreshBrowserIfOpen(); // Refresh browser if open
+        this.saveState();
     }
 
     selectAllFields() {
@@ -946,6 +1069,8 @@ class EmojiDataPasta {
         this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
         this.updatePresetDropdown(); // Update preset dropdown
+        this.refreshBrowserIfOpen(); // Refresh browser if open
+        this.saveState();
     }
 
     selectNoFields() {
@@ -954,6 +1079,8 @@ class EmojiDataPasta {
         this.renderOriginalStructure(); // Update to show red highlighting
         this.renderOutputPreview();
         this.updatePresetDropdown(); // Update preset dropdown
+        this.refreshBrowserIfOpen(); // Refresh browser if open
+        this.saveState();
     }
 
     applyChanges() {
@@ -1223,6 +1350,7 @@ class EmojiDataPasta {
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
         this.renderOutputPreview();
+        this.saveState();
     }
 
     resetVariant() {
@@ -1231,6 +1359,7 @@ class EmojiDataPasta {
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
         this.renderOutputPreview();
+        this.saveState();
     }
 
     updateFileSizePreview() {
@@ -1355,6 +1484,104 @@ class EmojiDataPasta {
         } else {
             this.currentPreset = '';
             dropdown.value = '';
+        }
+    }
+
+    loadPersistedState() {
+        try {
+            const savedState = localStorage.getItem('emoji-pasta-state');
+            if (!savedState) return;
+            
+            const state = JSON.parse(savedState);
+            
+            // Restore basic app state
+            this.currentEmojiIndex = state.currentEmojiIndex || 0;
+            this.currentVariant = state.currentVariant || 'default';
+            this.currentPreset = state.currentPreset || '';
+            
+            // Restore settings
+            if (state.settings) {
+                this.settings = { ...this.settings, ...state.settings };
+            }
+            
+            // Store field selections and schema for restoration after data loads
+            this.persistedSelectedFields = state.selectedFields || [];
+            this.persistedExpandedFields = state.expandedFields || [];
+            this.persistedFieldSchema = state.fieldSchema || {};
+            
+            console.log('Loaded persisted state');
+        } catch (error) {
+            console.warn('Failed to load persisted state:', error);
+        }
+    }
+
+    saveState() {
+        try {
+            const state = {
+                currentEmojiIndex: this.currentEmojiIndex,
+                currentVariant: this.currentVariant,
+                currentPreset: this.currentPreset,
+                selectedFields: Array.from(this.selectedFields),
+                expandedFields: Array.from(this.expandedFields),
+                fieldSchema: this.fieldSchema,
+                settings: this.settings,
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem('emoji-pasta-state', JSON.stringify(state));
+        } catch (error) {
+            console.warn('Failed to save state:', error);
+        }
+    }
+
+    resetApp() {
+        if (confirm('Are you sure you want to reset all data and clear saved state? This action cannot be undone.')) {
+            // Clear all localStorage
+            localStorage.removeItem('emoji-pasta-state');
+            localStorage.removeItem('emoji-pasta-custom-preset');
+            localStorage.removeItem('emoji-pasta-theme');
+            
+            // Reset all application state
+            this.originalData = [];
+            this.fieldSchema = {};
+            this.selectedFields = new Set();
+            this.filteredEmojis = [];
+            this.currentEmojiIndex = 0;
+            this.currentVariant = 'default';
+            this.expandedFields = new Set();
+            this.currentPreset = '';
+            this.customPreset = [];
+            
+            // Reset settings to defaults
+            this.settings = {
+                includeEmptyFields: true,
+                prettifyJson: true,
+                includeStats: true,
+                saveSettings: true,
+                filename: 'emoji-edited.json',
+                arrayName: ''
+            };
+            
+            // Reset theme to default (dark)
+            this.theme = 'dark';
+            this.applyTheme();
+            
+            // Reset UI
+            this.updateDisplay();
+            
+            // Reset preset dropdown
+            document.getElementById('fieldPresets').value = '';
+            
+            this.showMessage('Application reset successfully - all data and settings cleared', 'success');
+        }
+    }
+
+    refreshBrowserIfOpen() {
+        // If the emoji browser is open, refresh the data to show updated field selections
+        const modal = document.getElementById('emojiBrowserModal');
+        if (modal.classList.contains('active')) {
+            this.prepareFilteredEmojiData();
+            this.renderEmojiTable();
         }
     }
 }
