@@ -5,6 +5,7 @@ class EmojiDataPasta {
         this.fieldSchema = {};
         this.selectedFields = new Set();
         this.filteredEmojis = [];
+        this.removedEmojis = new Set(); // Track removed emoji indices
         this.currentEmojiIndex = 0;
         this.currentVariant = 'default';
         this.expandedFields = new Set();
@@ -109,6 +110,11 @@ class EmojiDataPasta {
         document.getElementById('fieldPresets').addEventListener('change', (e) => this.applyPreset(e.target.value));
         document.getElementById('resetPresets').addEventListener('click', () => this.resetPresets());
 
+        // Removed emojis management
+        document.getElementById('addRemovedEmoji').addEventListener('click', () => this.addCurrentEmojiToRemoved());
+        document.getElementById('bulkRemoveEmojis').addEventListener('click', () => this.showBulkRemoveModal());
+        document.getElementById('clearRemovedEmojis').addEventListener('click', () => this.clearRemovedEmojis());
+
         // Emoji navigation
         document.getElementById('emojiIcon').addEventListener('click', () => this.nextEmoji());
         document.getElementById('prevEmoji').addEventListener('click', () => this.prevEmoji());
@@ -164,6 +170,13 @@ class EmojiDataPasta {
 
         // Tooltip functionality
         this.initializeTooltips();
+
+        // Bulk remove modal
+        document.getElementById('closeBulkRemove').addEventListener('click', () => this.hideBulkRemoveModal());
+        document.getElementById('cancelBulkRemove').addEventListener('click', () => this.hideBulkRemoveModal());
+        document.getElementById('analyzeEmojis').addEventListener('click', () => this.analyzeInputEmojis());
+        document.getElementById('executeBulkRemove').addEventListener('click', () => this.executeBulkRemove());
+        document.getElementById('bulkEmojiInput').addEventListener('input', () => this.updateInputStats());
     }
 
     initializeTooltips() {
@@ -288,6 +301,11 @@ class EmojiDataPasta {
                 }
             });
             
+            // Restore removed emojis from file settings if available
+            if (this.savedFieldSchema.removedEmojis) {
+                this.removedEmojis = new Set(this.savedFieldSchema.removedEmojis.filter(index => index < this.originalData.length));
+            }
+            
             this.showMessage(`Loaded data with restored file settings: ${this.selectedFields.size} fields selected`, 'info');
         } else if (this.persistedSelectedFields && this.persistedSelectedFields.length > 0) {
             // Use localStorage state if available
@@ -305,11 +323,20 @@ class EmojiDataPasta {
                 }
             });
             
+            // Restore removed emojis from localStorage
+            if (this.persistedRemovedEmojis) {
+                this.removedEmojis = new Set(this.persistedRemovedEmojis.filter(index => index < this.originalData.length));
+            }
+            
             this.showMessage(`Loaded data with restored session state: ${this.selectedFields.size} fields selected`, 'info');
         } else {
             // Default: select all fields for new data
             this.selectedFields = new Set(Object.keys(this.fieldSchema));
         }
+        
+        // Ensure current emoji index is valid and not removed
+        this.currentEmojiIndex = Math.min(this.currentEmojiIndex, this.originalData.length - 1);
+        this.findNextAvailableEmoji();
         
         this.updateDisplay();
         this.saveState(); // Save state after loading data
@@ -396,12 +423,21 @@ class EmojiDataPasta {
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
         this.renderFieldManager();
+        this.renderRemovedManager();
         this.renderOutputPreview();
     }
 
     updateCounters() {
         const totalCount = this.originalData.length;
-        document.getElementById('totalCount').textContent = `${totalCount} emojis loaded`;
+        const availableCount = totalCount - this.removedEmojis.size;
+        const removedCount = this.removedEmojis.size;
+        
+        let countText = `${availableCount} emojis`;
+        if (removedCount > 0) {
+            countText += ` (${removedCount} removed)`;
+        }
+        
+        document.getElementById('totalCount').textContent = countText;
         
         const fieldCount = Object.keys(this.fieldSchema).length;
         document.getElementById('fieldCounter').textContent = `${fieldCount} fields`;
@@ -751,8 +787,8 @@ class EmojiDataPasta {
         document.getElementById('emojiBrowserModal').classList.add('active');
         this.emojiDisplayLimit = 100; // Reset display limit
         
-        // Initialize with all emojis (clear any previous search)
-        this.filteredEmojis = [...this.originalData];
+        // Initialize with available emojis (excluding removed ones)
+        this.filteredEmojis = this.originalData.filter((emoji, index) => !this.removedEmojis.has(index));
         
         // Clear search input
         document.getElementById('emojiSearch').value = '';
@@ -772,8 +808,11 @@ class EmojiDataPasta {
     }
 
     prepareFilteredEmojiData() {
-        // Create filtered data for all emojis based on current field selections
-        this.browserFilteredData = this.originalData.map(emoji => {
+        // Create filtered data for available emojis (excluding removed ones)
+        this.browserFilteredData = this.originalData.map((emoji, index) => {
+            if (this.removedEmojis.has(index)) {
+                return null; // Mark removed emojis as null
+            }
             return this.createFilteredEmoji(emoji);
         });
         
@@ -813,11 +852,13 @@ class EmojiDataPasta {
     }
 
     searchEmojis(query) {
+        const availableEmojis = this.originalData.filter((emoji, index) => !this.removedEmojis.has(index));
+        
         if (!query.trim()) {
-            this.filteredEmojis = [...this.originalData];
+            this.filteredEmojis = [...availableEmojis];
         } else {
             const searchTerm = query.toLowerCase();
-            this.filteredEmojis = this.originalData.filter(emoji => 
+            this.filteredEmojis = availableEmojis.filter(emoji => 
                 (emoji.name && emoji.name.toLowerCase().includes(searchTerm)) ||
                 (emoji.short_name && emoji.short_name.toLowerCase().includes(searchTerm)) ||
                 (emoji.category && emoji.category.toLowerCase().includes(searchTerm)) ||
@@ -1198,8 +1239,13 @@ class EmojiDataPasta {
     prepareExportData() {
         const processedData = [];
         
-        // Process emojis
-        this.originalData.forEach(emoji => {
+        // Process emojis, excluding removed ones
+        this.originalData.forEach((emoji, index) => {
+            // Skip removed emojis
+            if (this.removedEmojis.has(index)) {
+                return;
+            }
+            
             const filtered = this.createFilteredEmoji(emoji);
             if (Object.keys(filtered).length > 0) {
                 processedData.push(filtered);
@@ -1222,6 +1268,8 @@ class EmojiDataPasta {
             const stats = {
                 originalDataCount: this.originalData.length,
                 finalDataCount: processedData.length,
+                removedEmojiCount: this.removedEmojis.size,
+                removedEmojiIndices: Array.from(this.removedEmojis),
                 fieldsOriginal: Object.keys(this.fieldSchema).length,
                 fieldsSelected: this.selectedFields.size,
                 fieldsRemoved: Object.keys(this.fieldSchema).filter(f => !this.selectedFields.has(f)),
@@ -1235,6 +1283,7 @@ class EmojiDataPasta {
                 stats.fieldSelections = Array.from(this.selectedFields);
                 stats.expandedFields = Array.from(this.expandedFields);
                 stats.originalFieldSchema = this.fieldSchema;
+                stats.removedEmojis = Array.from(this.removedEmojis);
             }
 
             if (this.settings.arrayName && this.settings.arrayName.trim()) {
@@ -1507,6 +1556,7 @@ class EmojiDataPasta {
             // Store field selections and schema for restoration after data loads
             this.persistedSelectedFields = state.selectedFields || [];
             this.persistedExpandedFields = state.expandedFields || [];
+            this.persistedRemovedEmojis = state.removedEmojis || [];
             this.persistedFieldSchema = state.fieldSchema || {};
             
             console.log('Loaded persisted state');
@@ -1523,6 +1573,7 @@ class EmojiDataPasta {
                 currentPreset: this.currentPreset,
                 selectedFields: Array.from(this.selectedFields),
                 expandedFields: Array.from(this.expandedFields),
+                removedEmojis: Array.from(this.removedEmojis),
                 fieldSchema: this.fieldSchema,
                 settings: this.settings,
                 timestamp: Date.now()
@@ -1546,6 +1597,7 @@ class EmojiDataPasta {
             this.fieldSchema = {};
             this.selectedFields = new Set();
             this.filteredEmojis = [];
+            this.removedEmojis = new Set();
             this.currentEmojiIndex = 0;
             this.currentVariant = 'default';
             this.expandedFields = new Set();
@@ -1583,6 +1635,331 @@ class EmojiDataPasta {
             this.prepareFilteredEmojiData();
             this.renderEmojiTable();
         }
+    }
+
+    addCurrentEmojiToRemoved() {
+        if (this.originalData.length === 0) {
+            this.showMessage('No emoji data loaded', 'warning');
+            return;
+        }
+
+        if (this.removedEmojis.has(this.currentEmojiIndex)) {
+            this.showMessage('This emoji is already removed', 'info');
+            return;
+        }
+
+        this.removedEmojis.add(this.currentEmojiIndex);
+        
+        // Move to next available emoji if current one is removed
+        this.findNextAvailableEmoji();
+        
+        this.updateDisplay();
+        this.renderRemovedManager();
+        this.refreshBrowserIfOpen();
+        this.saveState();
+        
+        const emojiName = this.originalData[Array.from(this.removedEmojis).pop()]?.name || 'Unknown';
+        this.showMessage(`Removed "${emojiName}" from dataset`, 'success');
+    }
+
+    clearRemovedEmojis() {
+        if (this.removedEmojis.size === 0) {
+            this.showMessage('No emojis to restore', 'info');
+            return;
+        }
+
+        const count = this.removedEmojis.size;
+        this.removedEmojis.clear();
+        
+        this.updateDisplay();
+        this.renderRemovedManager();
+        this.refreshBrowserIfOpen();
+        this.saveState();
+        
+        this.showMessage(`Restored ${count} emojis to dataset`, 'success');
+    }
+
+    restoreEmoji(emojiIndex) {
+        this.removedEmojis.delete(emojiIndex);
+        
+        this.updateDisplay();
+        this.renderRemovedManager();
+        this.refreshBrowserIfOpen();
+        this.saveState();
+        
+        const emojiName = this.originalData[emojiIndex]?.name || 'Unknown';
+        this.showMessage(`Restored "${emojiName}" to dataset`, 'success');
+    }
+
+    findNextAvailableEmoji() {
+        // If current emoji is removed, find the next available one
+        if (this.removedEmojis.has(this.currentEmojiIndex)) {
+            let nextIndex = this.currentEmojiIndex;
+            let attempts = 0;
+            
+            // Look for next available emoji (with safety limit)
+            while (this.removedEmojis.has(nextIndex) && attempts < this.originalData.length) {
+                nextIndex = (nextIndex + 1) % this.originalData.length;
+                attempts++;
+            }
+            
+            // If all emojis are removed, stay at current (but it will be filtered out)
+            if (attempts < this.originalData.length) {
+                this.currentEmojiIndex = nextIndex;
+            }
+        }
+    }
+
+    getAvailableEmojis() {
+        // Return emojis that haven't been removed
+        return this.originalData.filter((emoji, index) => !this.removedEmojis.has(index));
+    }
+
+    renderRemovedManager() {
+        const container = document.getElementById('removedManager');
+        const counter = document.getElementById('removedCounter');
+        
+        counter.textContent = `${this.removedEmojis.size} removed`;
+        
+        if (this.removedEmojis.size === 0) {
+            container.innerHTML = '<div class="no-data">No emojis removed</div>';
+            return;
+        }
+
+        const removedIndices = Array.from(this.removedEmojis).sort((a, b) => a - b);
+        
+        container.innerHTML = removedIndices.map(index => {
+            const emoji = this.originalData[index];
+            if (!emoji) return '';
+            
+            // Try to render actual emoji
+            let emojiChar = '📝';
+            if (emoji.unified) {
+                try {
+                    const codePoints = emoji.unified.split('-').map(hex => parseInt(hex, 16));
+                    emojiChar = String.fromCodePoint(...codePoints);
+                } catch (e) {
+                    emojiChar = '📝';
+                }
+            }
+            
+            return `
+                <div class="removed-emoji-item">
+                    <div class="removed-emoji-icon">${emojiChar}</div>
+                    <div class="removed-emoji-info">
+                        <div class="removed-emoji-name">${emoji.name || 'Unknown'}</div>
+                        <div class="removed-emoji-details">
+                            <span class="removed-emoji-detail">Index: ${index}</span>
+                            <span class="removed-emoji-detail">Category: ${emoji.category || 'N/A'}</span>
+                            ${emoji.short_name ? `<span class="removed-emoji-detail">:${emoji.short_name}:</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="removed-emoji-actions">
+                        <button class="btn btn-small btn-restore" onclick="emojiPasta.restoreEmoji(${index})" title="Restore this emoji">
+                            ↩️ Restore
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    showBulkRemoveModal() {
+        document.getElementById('bulkRemoveModal').classList.add('active');
+        
+        // Reset modal state
+        document.getElementById('bulkEmojiInput').value = '';
+        document.getElementById('bulkRemovePreview').style.display = 'none';
+        document.getElementById('executeBulkRemove').disabled = true;
+        this.bulkRemoveMatches = [];
+        
+        this.updateInputStats();
+        
+        // Add click outside to close
+        setTimeout(() => {
+            document.addEventListener('click', this.closeBulkRemoveOnClickOutside);
+        }, 100);
+    }
+
+    hideBulkRemoveModal() {
+        document.getElementById('bulkRemoveModal').classList.remove('active');
+        document.removeEventListener('click', this.closeBulkRemoveOnClickOutside);
+    }
+
+    closeBulkRemoveOnClickOutside = (e) => {
+        const modal = document.getElementById('bulkRemoveModal');
+        const content = modal.querySelector('.bulk-remove-content');
+        if (modal.classList.contains('active') && !content.contains(e.target)) {
+            this.hideBulkRemoveModal();
+        }
+    }
+
+    updateInputStats() {
+        const input = document.getElementById('bulkEmojiInput').value;
+        const emojis = this.extractEmojisFromText(input);
+        const count = emojis.length;
+        
+        document.getElementById('inputEmojiCount').textContent = `${count} emoji${count !== 1 ? 's' : ''} detected`;
+        
+        // Hide preview when input changes
+        document.getElementById('bulkRemovePreview').style.display = 'none';
+        document.getElementById('executeBulkRemove').disabled = true;
+    }
+
+    extractEmojisFromText(text) {
+        // Enhanced regex to capture emoji characters including compound emojis and skin tones
+        const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F018}-\u{1F270}]|[\u{238C}-\u{2454}]|[\u{20D0}-\u{20FF}]|[\u{FE00}-\u{FE0F}]|[\u{1F200}-\u{1F2FF}]|[\u{E000}-\u{F8FF}]|(?:[\u{1F1E6}-\u{1F1FF}][\u{1F1E6}-\u{1F1FF}])|(?:[\u{1F3FB}-\u{1F3FF}])|(?:\u{200D})|(?:[\u{2640}\u{2642}]\u{FE0F}?)|(?:\u{FE0F})/gu;
+        
+        const matches = text.match(emojiRegex) || [];
+        return [...new Set(matches)]; // Remove duplicates
+    }
+
+    analyzeInputEmojis() {
+        const input = document.getElementById('bulkEmojiInput').value;
+        if (!input.trim()) {
+            this.showMessage('Please enter some emojis first', 'warning');
+            return;
+        }
+
+        const inputEmojis = this.extractEmojisFromText(input);
+        if (inputEmojis.length === 0) {
+            this.showMessage('No valid emojis detected in the input', 'warning');
+            return;
+        }
+
+        // Convert input emojis to unicode codepoints and find matches
+        this.bulkRemoveMatches = [];
+        const notFound = [];
+
+        inputEmojis.forEach(emojiChar => {
+            const unicode = this.emojiToUnicode(emojiChar);
+            const matches = this.findEmojisByUnicode(unicode);
+            
+            if (matches.length > 0) {
+                matches.forEach(match => {
+                    // Avoid duplicates and already removed emojis
+                    if (!this.bulkRemoveMatches.some(m => m.index === match.index) && 
+                        !this.removedEmojis.has(match.index)) {
+                        this.bulkRemoveMatches.push({
+                            index: match.index,
+                            emoji: match.emoji,
+                            inputChar: emojiChar,
+                            unicode: unicode
+                        });
+                    }
+                });
+            } else {
+                notFound.push(emojiChar);
+            }
+        });
+
+        this.displayBulkRemovePreview(this.bulkRemoveMatches, notFound);
+    }
+
+    emojiToUnicode(emoji) {
+        // Convert emoji character to unicode representation
+        const codePoints = [];
+        let i = 0;
+        while (i < emoji.length) {
+            const codePoint = emoji.codePointAt(i);
+            if (codePoint) {
+                codePoints.push(codePoint.toString(16).toUpperCase().padStart(4, '0'));
+                i += codePoint > 0xFFFF ? 2 : 1;
+            } else {
+                i++;
+            }
+        }
+        return codePoints.join('-');
+    }
+
+    findEmojisByUnicode(unicode) {
+        const matches = [];
+        
+        this.originalData.forEach((emoji, index) => {
+            // Check main unified field
+            if (emoji.unified && this.normalizeUnicode(emoji.unified) === this.normalizeUnicode(unicode)) {
+                matches.push({ index, emoji, matchType: 'unified' });
+            }
+            
+            // Check skin variations
+            if (emoji.skin_variations) {
+                Object.values(emoji.skin_variations).forEach(variant => {
+                    if (variant.unified && this.normalizeUnicode(variant.unified) === this.normalizeUnicode(unicode)) {
+                        matches.push({ index, emoji, matchType: 'variant' });
+                    }
+                });
+            }
+        });
+        
+        return matches;
+    }
+
+    normalizeUnicode(unicode) {
+        // Normalize unicode string for comparison
+        return unicode.replace(/^0+/gm, '').toUpperCase();
+    }
+
+    displayBulkRemovePreview(matches, notFound) {
+        const previewContainer = document.getElementById('bulkRemovePreview');
+        const previewList = document.getElementById('previewList');
+        const previewStats = document.getElementById('previewStats');
+        
+        if (matches.length === 0) {
+            previewContainer.style.display = 'none';
+            document.getElementById('executeBulkRemove').disabled = true;
+            
+            if (notFound.length > 0) {
+                this.showMessage(`No matches found for: ${notFound.join(' ')}`, 'info');
+            }
+            return;
+        }
+
+        // Display found matches
+        previewList.innerHTML = matches.map(match => {
+            const emoji = match.emoji;
+            return `
+                <div class="preview-emoji-item">
+                    <div class="preview-emoji-icon">${match.inputChar}</div>
+                    <div class="preview-emoji-name">${emoji.name || 'Unknown'}</div>
+                </div>
+            `;
+        }).join('');
+
+        let statsText = `${matches.length} emoji${matches.length !== 1 ? 's' : ''} will be removed`;
+        if (notFound.length > 0) {
+            statsText += ` • ${notFound.length} not found: ${notFound.join(' ')}`;
+        }
+        
+        previewStats.textContent = statsText;
+        previewContainer.style.display = 'block';
+        document.getElementById('executeBulkRemove').disabled = false;
+    }
+
+    executeBulkRemove() {
+        if (!this.bulkRemoveMatches || this.bulkRemoveMatches.length === 0) {
+            this.showMessage('No emojis to remove', 'warning');
+            return;
+        }
+
+        const count = this.bulkRemoveMatches.length;
+        
+        // Add all matched emojis to removed set
+        this.bulkRemoveMatches.forEach(match => {
+            this.removedEmojis.add(match.index);
+        });
+
+        // Update current emoji if it was removed
+        this.findNextAvailableEmoji();
+
+        // Update displays
+        this.updateDisplay();
+        this.renderRemovedManager();
+        this.refreshBrowserIfOpen();
+        this.saveState();
+
+        // Close modal and show success message
+        this.hideBulkRemoveModal();
+        this.showMessage(`Bulk removed ${count} emoji${count !== 1 ? 's' : ''} from dataset`, 'success');
     }
 }
 

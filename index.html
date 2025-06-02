@@ -79,6 +79,45 @@
             </div>
         </div>
 
+        <!-- Bulk Remove Modal -->
+        <div class="bulk-remove-modal" id="bulkRemoveModal">
+            <div class="bulk-remove-content">
+                <div class="bulk-remove-header">
+                    <h3>📝 Bulk Remove Emojis</h3>
+                    <button id="closeBulkRemove" class="btn btn-small">×</button>
+                </div>
+                <div class="bulk-remove-body">
+                    <div class="bulk-remove-instructions">
+                        <p>Paste raw emoji characters below to automatically find and remove them from your dataset:</p>
+                        <div class="example-emojis">
+                            <strong>Example:</strong> 🍒🍑🐱🍆🥷💦🔫👅👄
+                        </div>
+                    </div>
+                    
+                    <div class="bulk-remove-input-section">
+                        <label for="bulkEmojiInput">Raw Emoji Characters:</label>
+                        <textarea id="bulkEmojiInput" placeholder="Paste emojis here... 🍒🍑🐱🍆🥷💦🔫👅👄" rows="4"></textarea>
+                        <div class="input-stats">
+                            <span id="inputEmojiCount">0 emojis detected</span>
+                        </div>
+                    </div>
+                    
+                    <div class="bulk-remove-preview" id="bulkRemovePreview" style="display: none;">
+                        <h4>Found Emojis to Remove:</h4>
+                        <div class="preview-list" id="previewList"></div>
+                        <div class="preview-stats">
+                            <span id="previewStats">0 emojis will be removed</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="bulk-remove-actions">
+                    <button id="analyzeEmojis" class="btn btn-primary">🔍 Analyze Emojis</button>
+                    <button id="executeBulkRemove" class="btn btn-danger" disabled>➖ Remove Selected</button>
+                    <button id="cancelBulkRemove" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
         <div class="main-content">
             <!-- Top Section - Emoji Display -->
             <div class="emoji-section">
@@ -155,6 +194,22 @@
                 </div>
                 <div class="field-manager" id="fieldManager">
                     <div class="no-data">Load emoji data to manage fields</div>
+                </div>
+            </div>
+
+            <!-- Removed Emojis Section -->
+            <div class="removed-emojis-section">
+                <div class="panel-header">
+                    <h2>Removed Emojis</h2>
+                    <div class="removed-controls">
+                        <button id="addRemovedEmoji" class="btn btn-small btn-warning" title="Add current emoji to removed list">➖ Remove Current</button>
+                        <button id="bulkRemoveEmojis" class="btn btn-small btn-danger" title="Bulk remove emojis by pasting raw emoji characters">📝 Bulk Remove</button>
+                        <button id="clearRemovedEmojis" class="btn btn-small btn-secondary" title="Restore all removed emojis">🔄 Clear All</button>
+                        <span class="removed-counter" id="removedCounter">0 removed</span>
+                    </div>
+                </div>
+                <div class="removed-manager" id="removedManager">
+                    <div class="no-data">No emojis removed</div>
                 </div>
             </div>
         </div>
