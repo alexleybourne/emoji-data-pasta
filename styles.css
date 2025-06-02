@@ -1389,128 +1389,263 @@ select:focus {
     }
 }
 
-/* Removed Emojis Section */
-.removed-emojis-section {
+/* Category Customization Section */
+.category-section {
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;
     flex: 0 0 auto;
-    min-height: 120px;
-    max-height: 30vh;
+    min-height: 150px;
+    max-height: 40vh;
 }
 
-.removed-controls {
+.category-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.category-actions {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
 }
 
-.removed-counter {
-    background: var(--warning);
-    color: #ffffff;
+.category-counter {
+    background: var(--info-bg);
+    color: var(--info-text);
     padding: 0.25rem 0.75rem;
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 500;
-    border: 1px solid var(--warning-hover);
+    border: 1px solid var(--info-border);
 }
 
-.removed-manager {
+.category-manager {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 0.75rem;
     font-size: 0.8rem;
     line-height: 1.4;
-    max-height: calc(30vh - 60px);
+    max-height: calc(40vh - 60px);
 }
 
-.removed-manager::-webkit-scrollbar {
+.category-manager::-webkit-scrollbar {
     width: 4px;
 }
 
-.removed-manager::-webkit-scrollbar-track {
+.category-manager::-webkit-scrollbar-track {
     background: var(--bg-tertiary);
     border-radius: 2px;
 }
 
-.removed-manager::-webkit-scrollbar-thumb {
+.category-manager::-webkit-scrollbar-thumb {
     background: var(--border-primary);
     border-radius: 2px;
 }
 
-.removed-manager::-webkit-scrollbar-thumb:hover {
+.category-manager::-webkit-scrollbar-thumb:hover {
     background: var(--text-tertiary);
 }
 
-.removed-emoji-item {
-    display: flex;
-    align-items: center;
+/* Category Grid - Simple selectable cards */
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 0.75rem;
-    padding: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.category-card {
+    display: flex;
+    flex-direction: column;
     background: var(--bg-tertiary);
-    border-radius: 4px;
-    border: 1px solid var(--border-primary);
-    margin-bottom: 0.5rem;
+    border: 2px solid var(--border-primary);
+    border-radius: 6px;
+    padding: 0.75rem;
+    cursor: pointer;
     transition: all 0.2s ease;
+    position: relative;
+    user-select: none;
 }
 
-.removed-emoji-item:hover {
+.category-card:hover {
+    border-color: var(--accent-primary);
     background: var(--bg-elevated);
-    border-color: var(--border-secondary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 112, 243, 0.15);
 }
 
-.removed-emoji-icon {
-    font-size: 1.5rem;
-    flex-shrink: 0;
+.category-card.selected {
+    border-color: var(--accent-primary);
+    background: var(--accent-primary);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 112, 243, 0.25);
 }
 
-.removed-emoji-info {
+.category-card.selected .category-emoji-count {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.category-card.excluded {
+    opacity: 0.5;
+    background: var(--bg-elevated);
+    border-color: var(--danger);
+    border-style: dashed;
+}
+
+.category-card.excluded:hover {
+    border-color: var(--danger-hover);
+}
+
+.category-card.custom-mapping {
+    border-left: 4px solid var(--warning);
+    background: var(--bg-elevated);
+}
+
+.category-card.custom-mapping:hover {
+    border-left-color: var(--warning-hover);
+}
+
+.category-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.category-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.85rem;
     flex: 1;
     min-width: 0;
+    word-break: break-word;
 }
 
-.removed-emoji-name {
-    font-weight: 500;
-    color: var(--text-primary);
-    font-size: 0.8rem;
-    margin-bottom: 0.2rem;
+.category-card.selected .category-name {
+    color: #ffffff;
 }
 
-.removed-emoji-details {
-    font-size: 0.7rem;
-    color: var(--text-secondary);
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
+.category-emoji-count {
+    background: var(--success-bg);
+    color: var(--success-text);
+    padding: 0.15rem 0.4rem;
+    border-radius: 8px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    border: 1px solid var(--success-border);
+    white-space: nowrap;
 }
 
-.removed-emoji-detail {
-    background: var(--bg-secondary);
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    border: 1px solid var(--border-primary);
-}
-
-.removed-emoji-actions {
+.category-card-actions {
     display: flex;
     gap: 0.25rem;
-    flex-shrink: 0;
+    margin-top: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 
-.btn-restore {
-    background: var(--success);
-    border-color: var(--success);
+.category-card:hover .category-card-actions {
+    opacity: 1;
+}
+
+.category-card.selected .category-card-actions {
+    opacity: 1;
+}
+
+.category-action-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 3px;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.category-action-btn:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
+
+.category-action-btn.rename {
+    color: var(--warning);
+    border-color: var(--warning);
+}
+
+.category-action-btn.rename:hover {
+    background: var(--warning);
     color: #ffffff;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.7rem;
 }
 
-.btn-restore:hover {
-    background: var(--success-hover);
-    border-color: var(--success-hover);
+.category-action-btn.delete {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.category-action-btn.delete:hover {
+    background: var(--danger);
+    color: #ffffff;
+}
+
+.category-card.selected .category-action-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.category-card.selected .category-action-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
+.category-original-sources {
+    margin-top: 0.5rem;
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+    font-style: italic;
+}
+
+.category-card.selected .category-original-sources {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.category-selection-info {
+    background: var(--info-bg);
+    color: var(--info-text);
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    border: 1px solid var(--info-border);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+/* Remove all the old complex category mapping styles */
+.category-mapping,
+.category-mapping-header,
+.category-new-name,
+.category-mapping-actions,
+.category-original-list,
+.category-original-item,
+.category-remove-btn,
+.category-available,
+.category-available-title,
+.category-available-list,
+.category-available-item,
+.btn-exclude,
+.btn-include,
+.btn-delete-mapping {
+    display: none !important;
 }
 
 /* Bulk Remove Modal */
@@ -1537,8 +1672,8 @@ select:focus {
     border: 1px solid var(--border-primary);
     border-radius: 8px;
     width: 90vw;
-    max-width: 800px;
-    max-height: 90vh;
+    max-width: 600px;
+    max-height: 80vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1558,13 +1693,12 @@ select:focus {
     color: var(--text-primary);
     font-size: 1rem;
     font-weight: 600;
-    margin: 0;
 }
 
 .bulk-remove-body {
+    padding: 1.5rem;
     flex: 1;
     overflow-y: auto;
-    padding: 1.5rem;
 }
 
 .bulk-remove-instructions {
@@ -1578,13 +1712,17 @@ select:focus {
 }
 
 .example-emojis {
-    background: var(--bg-tertiary);
+    background: var(--info-bg);
+    color: var(--info-text);
     padding: 0.75rem;
     border-radius: 6px;
-    border: 1px solid var(--border-primary);
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 1.1rem;
-    color: var(--text-secondary);
+    border: 1px solid var(--info-border);
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.example-emojis strong {
+    font-weight: 600;
 }
 
 .bulk-remove-input-section {
@@ -1598,7 +1736,7 @@ select:focus {
     margin-bottom: 0.5rem;
 }
 
-#bulkEmojiInput {
+.bulk-remove-input-section textarea {
     width: 100%;
     min-height: 100px;
     padding: 0.75rem;
@@ -1607,86 +1745,147 @@ select:focus {
     background: var(--bg-tertiary);
     color: var(--text-primary);
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     line-height: 1.5;
     resize: vertical;
 }
 
-#bulkEmojiInput:focus {
+.bulk-remove-input-section textarea:focus {
     outline: none;
     border-color: var(--accent-primary);
     box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.1);
 }
 
+.bulk-remove-input-section textarea::placeholder {
+    color: var(--text-tertiary);
+    opacity: 0.7;
+}
+
 .input-stats {
     margin-top: 0.5rem;
-    font-size: 0.875rem;
     color: var(--text-secondary);
+    font-size: 0.875rem;
 }
 
 .bulk-remove-preview {
-    background: var(--bg-tertiary);
-    padding: 1rem;
-    border-radius: 6px;
     border: 1px solid var(--border-primary);
-    margin-bottom: 1rem;
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+    overflow: hidden;
 }
 
 .bulk-remove-preview h4 {
-    color: var(--text-primary);
-    margin-bottom: 0.75rem;
-    font-size: 0.9rem;
+    background: var(--success-bg);
+    color: var(--success-text);
+    padding: 0.75rem;
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--success-border);
 }
 
 .preview-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    padding: 0.75rem;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
-    margin-bottom: 0.75rem;
 }
 
 .preview-emoji-item {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem;
     background: var(--bg-secondary);
-    border-radius: 4px;
     border: 1px solid var(--border-primary);
-    font-size: 0.8rem;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-size: 0.875rem;
 }
 
 .preview-emoji-icon {
     font-size: 1.2rem;
-    flex-shrink: 0;
 }
 
 .preview-emoji-name {
-    flex: 1;
     color: var(--text-primary);
     font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .preview-stats {
-    padding-top: 0.5rem;
+    background: var(--bg-elevated);
+    padding: 0.75rem;
     border-top: 1px solid var(--border-primary);
-    font-size: 0.875rem;
     color: var(--text-secondary);
-    font-weight: 500;
+    font-size: 0.875rem;
+    text-align: center;
 }
 
 .bulk-remove-actions {
-    background: var(--bg-tertiary);
     padding: 1rem 1.5rem;
     border-top: 1px solid var(--border-primary);
     display: flex;
     gap: 1rem;
-    justify-content: flex-end;
 }
 
 .bulk-remove-actions .btn {
-    min-width: 120px;
+    flex: 1;
+}
+
+/* Removed Emojis Styles */
+.removed-emoji-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.removed-emoji-item:hover {
+    background: var(--bg-elevated);
+    border-color: var(--border-secondary);
+}
+
+.removed-emoji-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.removed-emoji-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.removed-emoji-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.removed-emoji-details {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.removed-emoji-detail {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    border: 1px solid var(--border-primary);
+}
+
+.removed-emoji-actions {
+    flex-shrink: 0;
+}
+
+.btn-restore {
+    white-space: nowrap;
 } 

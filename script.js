@@ -13,6 +13,10 @@ class EmojiDataPasta {
         this.presets = this.getFieldPresets();
         this.currentPreset = '';
         this.customPreset = this.loadCustomPreset();
+        this.categoryMappings = new Map(); // Map of new category names to arrays of original categories
+        this.excludedCategories = new Set(); // Set of categories to exclude completely
+        this.originalCategories = new Map(); // Map of original category names to emoji counts
+        this.selectedCategories = new Set(); // Track selected categories for multi-select operations
         this.settings = {
             includeEmptyFields: true,
             prettifyJson: true,
@@ -177,6 +181,12 @@ class EmojiDataPasta {
         document.getElementById('analyzeEmojis').addEventListener('click', () => this.analyzeInputEmojis());
         document.getElementById('executeBulkRemove').addEventListener('click', () => this.executeBulkRemove());
         document.getElementById('bulkEmojiInput').addEventListener('input', () => this.updateInputStats());
+
+        // Category customization
+        document.getElementById('mergeCategoriesBtn').addEventListener('click', () => this.mergeSelectedCategories());
+        document.getElementById('deleteSelectedBtn').addEventListener('click', () => this.deleteSelectedCategories());
+        document.getElementById('clearSelectionBtn').addEventListener('click', () => this.clearCategorySelection());
+        document.getElementById('resetCategories').addEventListener('click', () => this.resetCategoryMappings());
     }
 
     initializeTooltips() {
@@ -273,7 +283,9 @@ class EmojiDataPasta {
         }
 
         this.analyzeFieldStructure();
+        this.analyzeCategoryStructure();
         this.filteredEmojis = [...this.originalData];
+        this.updateDisplay();
         
         // Restore navigation state from localStorage if available and no file-specific settings
         if (!hasRestorableSettings && this.persistedSelectedFields) {
@@ -423,6 +435,7 @@ class EmojiDataPasta {
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
         this.renderFieldManager();
+        this.renderCategoryManager();
         this.renderRemovedManager();
         this.renderOutputPreview();
     }
@@ -1030,53 +1043,64 @@ class EmojiDataPasta {
     createFilteredEmoji(originalEmoji) {
         const filtered = {};
         
-        // Process each field in the original emoji
-        Object.keys(originalEmoji).forEach(field => {
-            if (field === 'skin_variations') {
-                // Handle skin_variations specially
-                if (this.selectedFields.has('skin_variations') && originalEmoji.skin_variations) {
-                    const filteredVariations = {};
-                    
-                    Object.keys(originalEmoji.skin_variations).forEach(variantKey => {
-                        const variant = originalEmoji.skin_variations[variantKey];
-                        const filteredVariant = {};
-                        
-                        // For each field in the variant, check if the sub-field is selected
-                        Object.keys(variant).forEach(variantField => {
-                            const subFieldName = `skin_variations.${variantField}`;
-                            if (this.selectedFields.has(subFieldName)) {
-                                const value = variant[variantField];
-                                if (this.settings.includeEmptyFields || 
-                                    (value !== null && value !== '' && value !== undefined)) {
-                                    filteredVariant[variantField] = value;
-                                }
-                            }
-                        });
-                        
-                        // Only include this variant if it has any fields
-                        if (Object.keys(filteredVariant).length > 0) {
-                            filteredVariations[variantKey] = filteredVariant;
-                        }
-                    });
-                    
-                    // Only include skin_variations if there are any variants with content
-                    if (Object.keys(filteredVariations).length > 0) {
-                        filtered.skin_variations = filteredVariations;
+        // First, apply category mappings if any exist
+        let newCategory = originalEmoji.category;
+        if (this.categoryMappings.size > 0) {
+            // Find which mapping this emoji's category belongs to
+            for (const [mappingName, originalCategories] of this.categoryMappings) {
+                if (originalCategories.includes(originalEmoji.category)) {
+                    // Check if this mapping is excluded
+                    if (this.excludedCategories.has(mappingName)) {
+                        // Skip this emoji entirely if its category mapping is excluded
+                        return null;
                     }
-                }
-            } else {
-                // Handle regular fields
-                if (this.selectedFields.has(field)) {
-                    const value = originalEmoji[field];
-                    if (this.settings.includeEmptyFields || 
-                        (value !== null && value !== '' && value !== undefined)) {
-                        filtered[field] = value;
-                    }
+                    newCategory = mappingName;
+                    break;
                 }
             }
-        });
+            
+            // If category is not in any mapping but we have mappings, check if original category is excluded
+            if (newCategory === originalEmoji.category && this.excludedCategories.has(originalEmoji.category)) {
+                return null;
+            }
+        }
         
-        return filtered;
+        // Apply field selections
+        for (const fieldName of this.selectedFields) {
+            if (fieldName === 'category' && newCategory !== originalEmoji.category) {
+                // Use the mapped category instead of original
+                filtered[fieldName] = newCategory;
+            } else if (originalEmoji.hasOwnProperty(fieldName)) {
+                const value = originalEmoji[fieldName];
+                
+                // Handle skin variations
+                if (fieldName === 'skin_variations' && value && typeof value === 'object') {
+                    const filteredVariations = {};
+                    for (const [skinTone, skinData] of Object.entries(value)) {
+                        const filteredSkinData = {};
+                        for (const subField of this.selectedFields) {
+                            if (subField.startsWith('skin_variations.') && skinData.hasOwnProperty(subField.split('.')[1])) {
+                                const subFieldName = subField.split('.')[1];
+                                filteredSkinData[subFieldName] = skinData[subFieldName];
+                            }
+                        }
+                        if (Object.keys(filteredSkinData).length > 0) {
+                            filteredVariations[skinTone] = filteredSkinData;
+                        }
+                    }
+                    if (Object.keys(filteredVariations).length > 0) {
+                        filtered[fieldName] = filteredVariations;
+                    }
+                } else if (!this.settings.includeEmptyFields && (value === null || value === undefined || value === '')) {
+                    // Skip empty fields if setting is disabled
+                    continue;
+                } else {
+                    filtered[fieldName] = value;
+                }
+            }
+        }
+
+        return Object.keys(filtered).length > 0 ? filtered : null;
     }
 
     toggleField(fieldName) {
@@ -1542,6 +1566,10 @@ class EmojiDataPasta {
             if (!savedState) return;
             
             const state = JSON.parse(savedState);
+            console.log('Loading persisted state:', state);
+            
+            // Determine if we should skip field restoration (if file has its own settings)
+            const skipFieldRestore = this.savedFieldSelections && this.savedFieldSelections.size > 0;
             
             // Restore basic app state
             this.currentEmojiIndex = state.currentEmojiIndex || 0;
@@ -1559,6 +1587,37 @@ class EmojiDataPasta {
             this.persistedRemovedEmojis = state.removedEmojis || [];
             this.persistedFieldSchema = state.fieldSchema || {};
             
+            // Also restore immediately if data is already loaded
+            if (this.originalData.length > 0) {
+                // Restore field selections from state (if no file-specific settings)
+                if (!skipFieldRestore && state.selectedFields) {
+                    const fieldsToRestore = Array.isArray(state.selectedFields) ? state.selectedFields : [];
+                    fieldsToRestore.forEach(field => this.selectedFields.add(field));
+                }
+                
+                // Restore removed emojis
+                if (state.removedEmojis) {
+                    const removedToRestore = Array.isArray(state.removedEmojis) ? state.removedEmojis : [];
+                    removedToRestore.forEach(index => this.removedEmojis.add(index));
+                }
+                
+                // Restore expanded fields
+                if (state.expandedFields) {
+                    const expandedToRestore = Array.isArray(state.expandedFields) ? state.expandedFields : [];
+                    expandedToRestore.forEach(field => this.expandedFields.add(field));
+                }
+            }
+            
+            // Restore category mappings
+            if (state.categoryMappings) {
+                this.categoryMappings = new Map(state.categoryMappings);
+            }
+            
+            // Restore excluded categories
+            if (state.excludedCategories) {
+                this.excludedCategories = new Set(state.excludedCategories);
+            }
+            
             console.log('Loaded persisted state');
         } catch (error) {
             console.warn('Failed to load persisted state:', error);
@@ -1574,6 +1633,8 @@ class EmojiDataPasta {
                 selectedFields: Array.from(this.selectedFields),
                 expandedFields: Array.from(this.expandedFields),
                 removedEmojis: Array.from(this.removedEmojis),
+                categoryMappings: Array.from(this.categoryMappings.entries()),
+                excludedCategories: Array.from(this.excludedCategories),
                 fieldSchema: this.fieldSchema,
                 settings: this.settings,
                 timestamp: Date.now()
@@ -1601,6 +1662,10 @@ class EmojiDataPasta {
             this.currentEmojiIndex = 0;
             this.currentVariant = 'default';
             this.expandedFields = new Set();
+            this.categoryMappings = new Map();
+            this.excludedCategories = new Set();
+            this.originalCategories = new Map();
+            this.selectedCategories = new Set();
             this.currentPreset = '';
             this.customPreset = [];
             
@@ -1961,6 +2026,438 @@ class EmojiDataPasta {
         this.hideBulkRemoveModal();
         this.showMessage(`Bulk removed ${count} emoji${count !== 1 ? 's' : ''} from dataset`, 'success');
     }
+
+    addNewCategoryMapping() {
+        const newMappingName = `Custom Category ${this.categoryMappings.size + 1}`;
+        this.categoryMappings.set(newMappingName, []);
+        this.renderCategoryManager();
+        this.saveState();
+        this.showMessage(`Created new category mapping: "${newMappingName}"`, 'success');
+    }
+
+    resetCategoryMappings() {
+        if (confirm('Are you sure you want to reset all category mappings and exclusions? This will restore original categories.')) {
+            this.categoryMappings.clear();
+            this.excludedCategories.clear();
+            this.selectedCategories.clear();
+            this.renderCategoryManager();
+            this.renderOutputPreview();
+            this.saveState();
+            this.showMessage('Reset all category customizations', 'success');
+        }
+    }
+
+    updateCategoryMapping(oldName, newName) {
+        if (oldName === newName) return;
+        
+        // Check if new name already exists
+        if (this.categoryMappings.has(newName)) {
+            this.showMessage(`Category mapping "${newName}" already exists`, 'error');
+            this.renderCategoryManager(); // Reset the input
+            return;
+        }
+
+        // Move the mapping to the new name
+        const originalCategories = this.categoryMappings.get(oldName);
+        this.categoryMappings.delete(oldName);
+        this.categoryMappings.set(newName, originalCategories);
+        
+        // Update exclusion if it was excluded
+        if (this.excludedCategories.has(oldName)) {
+            this.excludedCategories.delete(oldName);
+            this.excludedCategories.add(newName);
+        }
+
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Renamed category mapping to "${newName}"`, 'success');
+    }
+
+    excludeCategoryMapping(mappingName) {
+        this.excludedCategories.add(mappingName);
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Excluded category mapping "${mappingName}"`, 'warning');
+    }
+
+    includeCategoryMapping(mappingName) {
+        this.excludedCategories.delete(mappingName);
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Included category mapping "${mappingName}"`, 'success');
+    }
+
+    deleteCategoryMapping(mappingName) {
+        if (confirm(`Are you sure you want to delete the "${mappingName}" mapping?`)) {
+            this.categoryMappings.delete(mappingName);
+            this.excludedCategories.delete(mappingName);
+            this.renderCategoryManager();
+            this.renderOutputPreview();
+            this.saveState();
+            this.showMessage(`Deleted category mapping "${mappingName}"`, 'success');
+        }
+    }
+
+    removeCategoryFromMapping(mappingName, categoryToRemove) {
+        const originalCategories = this.categoryMappings.get(mappingName);
+        if (originalCategories) {
+            const index = originalCategories.indexOf(categoryToRemove);
+            if (index !== -1) {
+                originalCategories.splice(index, 1);
+                
+                // If no categories left, delete the mapping
+                if (originalCategories.length === 0) {
+                    this.categoryMappings.delete(mappingName);
+                    this.excludedCategories.delete(mappingName);
+                }
+                
+                this.renderCategoryManager();
+                this.renderOutputPreview();
+                this.saveState();
+                this.showMessage(`Removed "${categoryToRemove}" from "${mappingName}"`, 'success');
+            }
+        }
+    }
+
+    selectCategoryForMapping(categoryName) {
+        // Find if there are any existing mappings to add this to, or create a new one
+        const mappingNames = Array.from(this.categoryMappings.keys());
+        
+        if (mappingNames.length === 0) {
+            // Create first mapping
+            const newMappingName = categoryName;
+            this.categoryMappings.set(newMappingName, [categoryName]);
+        } else {
+            // Ask user which mapping to add to, or create new one
+            let choice = prompt(`Add "${categoryName}" to which mapping?\n\nExisting mappings:\n${mappingNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}\n\nEnter number (1-${mappingNames.length}) or type new mapping name:`);
+            
+            if (choice === null) return; // User cancelled
+            
+            const choiceNum = parseInt(choice);
+            if (choiceNum >= 1 && choiceNum <= mappingNames.length) {
+                // Add to existing mapping
+                const mappingName = mappingNames[choiceNum - 1];
+                const originalCategories = this.categoryMappings.get(mappingName);
+                if (!originalCategories.includes(categoryName)) {
+                    originalCategories.push(categoryName);
+                    this.showMessage(`Added "${categoryName}" to "${mappingName}"`, 'success');
+                }
+            } else if (choice.trim()) {
+                // Create new mapping
+                const newMappingName = choice.trim();
+                if (this.categoryMappings.has(newMappingName)) {
+                    // Add to existing mapping with this name
+                    const originalCategories = this.categoryMappings.get(newMappingName);
+                    if (!originalCategories.includes(categoryName)) {
+                        originalCategories.push(categoryName);
+                        this.showMessage(`Added "${categoryName}" to existing "${newMappingName}"`, 'success');
+                    }
+                } else {
+                    // Create new mapping
+                    this.categoryMappings.set(newMappingName, [categoryName]);
+                    this.showMessage(`Created new mapping "${newMappingName}" with "${categoryName}"`, 'success');
+                }
+            }
+        }
+        
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+    }
+
+    // Category Customization Methods
+    analyzeCategoryStructure() {
+        this.originalCategories.clear();
+        
+        // Count emojis in each category
+        this.originalData.forEach(emoji => {
+            const category = emoji.category || 'Unknown';
+            const currentCount = this.originalCategories.get(category) || 0;
+            this.originalCategories.set(category, currentCount + 1);
+        });
+
+        console.log('Analyzed categories:', this.originalCategories);
+    }
+
+    renderCategoryManager() {
+        const categoryManager = document.getElementById('categoryManager');
+        const categoryCounter = document.getElementById('categoryCounter');
+        
+        if (this.originalData.length === 0) {
+            categoryManager.innerHTML = '<div class="no-data">Load emoji data to customize categories</div>';
+            categoryCounter.textContent = '0 categories';
+            this.updateCategoryActionButtons();
+            return;
+        }
+
+        // Build list of all categories (original + custom mappings)
+        const allCategories = new Map();
+        
+        // Add original categories that aren't mapped to anything
+        const mappedOriginalCategories = new Set();
+        for (const originalCategories of this.categoryMappings.values()) {
+            originalCategories.forEach(cat => mappedOriginalCategories.add(cat));
+        }
+        
+        for (const [category, count] of this.originalCategories) {
+            if (!mappedOriginalCategories.has(category)) {
+                allCategories.set(category, {
+                    name: category,
+                    count: count,
+                    type: 'original',
+                    isExcluded: this.excludedCategories.has(category),
+                    originalSources: [category]
+                });
+            }
+        }
+        
+        // Add custom mappings
+        for (const [mappingName, originalCategories] of this.categoryMappings) {
+            const totalCount = originalCategories.reduce((sum, cat) => sum + (this.originalCategories.get(cat) || 0), 0);
+            allCategories.set(mappingName, {
+                name: mappingName,
+                count: totalCount,
+                type: 'mapping',
+                isExcluded: this.excludedCategories.has(mappingName),
+                originalSources: originalCategories
+            });
+        }
+
+        // Update counter
+        const totalOriginal = this.originalCategories.size;
+        const totalMappings = this.categoryMappings.size;
+        const totalExcluded = this.excludedCategories.size;
+        const selectedCount = this.selectedCategories.size;
+        
+        categoryCounter.textContent = `${totalOriginal} original, ${totalMappings} custom, ${totalExcluded} excluded${selectedCount > 0 ? ` • ${selectedCount} selected` : ''}`;
+
+        // Build HTML
+        let html = '';
+        
+        // Show selection info if categories are selected
+        if (selectedCount > 0) {
+            const selectedNames = Array.from(this.selectedCategories).slice(0, 3).join(', ');
+            const moreText = selectedCount > 3 ? ` and ${selectedCount - 3} more` : '';
+            html += `<div class="category-selection-info">
+                ${selectedCount} categor${selectedCount === 1 ? 'y' : 'ies'} selected: ${selectedNames}${moreText}
+            </div>`;
+        }
+        
+        // Category grid
+        if (allCategories.size > 0) {
+            html += '<div class="category-grid">';
+            
+            for (const [categoryKey, categoryData] of allCategories) {
+                const isSelected = this.selectedCategories.has(categoryKey);
+                const cssClasses = [
+                    'category-card',
+                    isSelected ? 'selected' : '',
+                    categoryData.isExcluded ? 'excluded' : '',
+                    categoryData.type === 'mapping' ? 'custom-mapping' : ''
+                ].filter(Boolean).join(' ');
+                
+                html += `<div class="${cssClasses}" data-category="${categoryKey}" onclick="emojiPasta.toggleCategorySelection('${categoryKey}')">
+                    <div class="category-card-header">
+                        <div class="category-name">${categoryData.name}</div>
+                        <div class="category-emoji-count">${categoryData.count}</div>
+                    </div>
+                    
+                    <div class="category-card-actions">
+                        <button class="category-action-btn rename" onclick="event.stopPropagation(); emojiPasta.renameCategoryInline('${categoryKey}')" title="Rename">✏️</button>
+                        <button class="category-action-btn delete" onclick="event.stopPropagation(); emojiPasta.deleteSingleCategory('${categoryKey}')" title="Delete">🗑️</button>
+                    </div>
+                    
+                    ${categoryData.originalSources.length > 1 ? 
+                        `<div class="category-original-sources">Merged from: ${categoryData.originalSources.join(', ')}</div>` : 
+                        ''}
+                </div>`;
+            }
+            
+            html += '</div>';
+        } else {
+            html = '<div class="no-data">No categories available</div>';
+        }
+
+        categoryManager.innerHTML = html;
+        this.updateCategoryActionButtons();
+    }
+
+    mergeSelectedCategories() {
+        if (this.selectedCategories.size < 2) {
+            this.showMessage('Select at least 2 categories to merge', 'warning');
+            return;
+        }
+        
+        const selectedNames = Array.from(this.selectedCategories);
+        const newName = prompt(`Enter name for merged category:\n\nMerging: ${selectedNames.join(', ')}`, selectedNames[0]);
+        
+        if (!newName || !newName.trim()) return;
+        
+        const finalName = newName.trim();
+        
+        // Collect all original categories from selected items
+        const allOriginalCategories = [];
+        
+        for (const selectedCategory of selectedNames) {
+            if (this.categoryMappings.has(selectedCategory)) {
+                // It's a custom mapping - add its original categories
+                const originals = this.categoryMappings.get(selectedCategory);
+                allOriginalCategories.push(...originals);
+                // Remove the old mapping
+                this.categoryMappings.delete(selectedCategory);
+                this.excludedCategories.delete(selectedCategory);
+            } else {
+                // It's an original category
+                allOriginalCategories.push(selectedCategory);
+                this.excludedCategories.delete(selectedCategory);
+            }
+        }
+        
+        // Create new mapping with all collected original categories
+        this.categoryMappings.set(finalName, allOriginalCategories);
+        
+        // Clear selection
+        this.selectedCategories.clear();
+        
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Merged ${selectedNames.length} categories into "${finalName}"`, 'success');
+    }
+
+    deleteSelectedCategories() {
+        if (this.selectedCategories.size === 0) {
+            this.showMessage('No categories selected', 'warning');
+            return;
+        }
+        
+        const selectedNames = Array.from(this.selectedCategories);
+        const count = selectedNames.length;
+        
+        if (!confirm(`Are you sure you want to exclude ${count} categor${count === 1 ? 'y' : 'ies'}?\n\n${selectedNames.join(', ')}\n\nThey will be removed from the output.`)) {
+            return;
+        }
+        
+        // Add all selected categories to excluded set
+        selectedNames.forEach(category => {
+            this.excludedCategories.add(category);
+        });
+        
+        // Clear selection
+        this.selectedCategories.clear();
+        
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Excluded ${count} categor${count === 1 ? 'y' : 'ies'} from output`, 'success');
+    }
+
+    clearCategorySelection() {
+        this.selectedCategories.clear();
+        this.renderCategoryManager();
+    }
+
+    toggleCategorySelection(categoryName) {
+        if (this.selectedCategories.has(categoryName)) {
+            this.selectedCategories.delete(categoryName);
+        } else {
+            this.selectedCategories.add(categoryName);
+        }
+        this.renderCategoryManager();
+    }
+
+    updateCategoryActionButtons() {
+        const mergeBtn = document.getElementById('mergeCategoriesBtn');
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
+        const clearBtn = document.getElementById('clearSelectionBtn');
+        
+        const hasSelection = this.selectedCategories.size > 0;
+        const canMerge = this.selectedCategories.size >= 2;
+        
+        if (mergeBtn) {
+            mergeBtn.disabled = !canMerge;
+            mergeBtn.title = canMerge ? 'Merge selected categories' : 'Select 2+ categories to merge';
+        }
+        
+        if (deleteBtn) {
+            deleteBtn.disabled = !hasSelection;
+            deleteBtn.title = hasSelection ? 'Exclude selected categories' : 'Select categories to exclude';
+        }
+        
+        if (clearBtn) {
+            clearBtn.disabled = !hasSelection;
+            clearBtn.title = hasSelection ? 'Clear selection' : 'No categories selected';
+        }
+    }
+
+    renameCategoryInline(categoryName) {
+        const newName = prompt(`Rename category:`, categoryName);
+        if (!newName || !newName.trim() || newName.trim() === categoryName) return;
+        
+        const finalName = newName.trim();
+        
+        // Check if new name already exists
+        if (this.categoryMappings.has(finalName) || this.originalCategories.has(finalName)) {
+            this.showMessage(`Category "${finalName}" already exists`, 'error');
+            return;
+        }
+        
+        if (this.categoryMappings.has(categoryName)) {
+            // Rename a custom mapping
+            const originalCategories = this.categoryMappings.get(categoryName);
+            this.categoryMappings.delete(categoryName);
+            this.categoryMappings.set(finalName, originalCategories);
+            
+            // Update exclusion status
+            if (this.excludedCategories.has(categoryName)) {
+                this.excludedCategories.delete(categoryName);
+                this.excludedCategories.add(finalName);
+            }
+            
+            // Update selection if it was selected
+            if (this.selectedCategories.has(categoryName)) {
+                this.selectedCategories.delete(categoryName);
+                this.selectedCategories.add(finalName);
+            }
+        } else {
+            // Rename an original category by creating a mapping
+            this.categoryMappings.set(finalName, [categoryName]);
+            
+            // Update exclusion status
+            if (this.excludedCategories.has(categoryName)) {
+                this.excludedCategories.delete(categoryName);
+                this.excludedCategories.add(finalName);
+            }
+            
+            // Update selection if it was selected
+            if (this.selectedCategories.has(categoryName)) {
+                this.selectedCategories.delete(categoryName);
+                this.selectedCategories.add(finalName);
+            }
+        }
+        
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Renamed "${categoryName}" to "${finalName}"`, 'success');
+    }
+
+    deleteSingleCategory(categoryName) {
+        if (!confirm(`Are you sure you want to exclude "${categoryName}"?\n\nIt will be removed from the output.`)) {
+            return;
+        }
+        
+        this.excludedCategories.add(categoryName);
+        this.selectedCategories.delete(categoryName);
+        
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Excluded "${categoryName}" from output`, 'success');
+    }
 }
 
 // Add animations
@@ -1978,4 +2475,6 @@ style.textContent = `
 document.head.appendChild(style);
 
 // Initialize the application
-const emojiPasta = new EmojiDataPasta(); 
+const emojiPasta = new EmojiDataPasta();
+// Make it globally accessible for onclick handlers
+window.app = emojiPasta;
