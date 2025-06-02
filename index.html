@@ -118,6 +118,54 @@
             </div>
         </div>
 
+        <!-- Bulk Add Search Terms Modal -->
+        <div class="bulk-add-terms-modal" id="bulkAddTermsModal">
+            <div class="bulk-add-terms-content">
+                <div class="bulk-add-terms-header">
+                    <h3>🏷️ Bulk Add Search Terms</h3>
+                    <button id="closeBulkAddTerms" class="btn btn-small">×</button>
+                </div>
+                <div class="bulk-add-terms-body">
+                    <div class="current-emoji-context">
+                        <div class="current-emoji-display" id="bulkAddCurrentEmoji">
+                            <!-- Current emoji info -->
+                        </div>
+                    </div>
+                    
+                    <div class="bulk-add-instructions">
+                        <p>Add multiple search terms to the current emoji. Enter one term per line or separate with commas:</p>
+                        <div class="example-terms">
+                            <strong>Example:</strong><br>
+                            happy<br>
+                            smile<br>
+                            positive, good, joy
+                        </div>
+                    </div>
+                    
+                    <div class="bulk-add-input-section">
+                        <label for="bulkTermsInput">Search Terms:</label>
+                        <textarea id="bulkTermsInput" placeholder="Enter search terms (one per line or comma-separated)..." rows="6"></textarea>
+                        <div class="input-stats">
+                            <span id="inputTermsCount">0 terms detected</span>
+                        </div>
+                    </div>
+                    
+                    <div class="bulk-add-preview" id="bulkAddPreview" style="display: none;">
+                        <h4>Terms to Add:</h4>
+                        <div class="terms-preview-list" id="termsPreviewList"></div>
+                        <div class="terms-preview-stats">
+                            <span id="termsPreviewStats">0 terms will be added</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="bulk-add-terms-actions">
+                    <button id="analyzeTerms" class="btn btn-primary">🔍 Analyze Terms</button>
+                    <button id="executeBulkAddTerms" class="btn btn-success" disabled>🏷️ Add Terms</button>
+                    <button id="cancelBulkAddTerms" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
         <div class="main-content">
             <!-- Top Section - Emoji Display -->
             <div class="emoji-section">
@@ -165,70 +213,161 @@
                     <div class="json-view" id="outputStructure">
                         <div class="loading">Make field changes to see output preview</div>
                     </div>
+
+                    <div class="json-view" id="tabOriginalStructure">
+                        <div class="loading">Load a JSON file to see the emoji structure</div>
+                    </div>
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <div class="json-panel output-panel">
+                    <div class="tool-panel-header">
+                        <h2>Output Structure</h2>
+                        <span class="output-info">How your data will look</span>
+                    </div>
+                    <div class="json-view" id="tabOutputStructure">
+                        <div class="loading">Make field changes to see output preview</div>
+                    </div>
+
+                    <div class="json-view" id="tabOriginalStructure">
+                        <div class="loading">Load a JSON file to see the emoji structure</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Bottom Section - Field Manager -->
-            <div class="field-section">
-                <div class="panel-header">
-                    <h2>Field Manager</h2>
-                    <div class="field-controls">
-                        <div class="preset-controls">
-                            <label for="fieldPresets" class="preset-label">
-                                Field Presets
-                                <div class="preset-info-icon" title="Choose predefined field combinations for different use cases">ℹ️</div>
-                            </label>
-                            <div class="preset-actions">
-                                <select id="fieldPresets" class="preset-select">
-                                    <option value="">Select Preset...</option>
-                                    <option value="minimal">Minimal</option>
-                                    <option value="essential">Essential</option>
-                                    <option value="complete">Complete</option>
-                                    <option value="custom">Custom</option>
-                                </select>
-                                <button id="resetPresets" class="btn btn-small" title="Reset to default state">🔄</button>
+            <!-- Tabbed Tools Section -->
+            <div class="tools-section">
+                <div class="tools-tabs">
+                    <button class="tool-tab active" data-tab="field-manager">📊 Fields & Preview</button>
+                    <button class="tool-tab" data-tab="category-customization">📁 Categories</button>
+                    <button class="tool-tab" data-tab="search-terms">🏷️ Search Terms</button>
+                    <button class="tool-tab" data-tab="removed-emojis">🗑️ Removed Emojis</button>
+                </div>
+
+                <div class="tools-content">
+                    <!-- Combined Fields & JSON Preview Tab -->
+                    <div class="tool-panel active" id="field-manager-tab">
+                        <div class="combined-fields-json">
+                            <!-- Left side: Field Manager -->
+                            <div class="fields-panel">
+                                <div class="tool-panel-header">
+                                    <h2>Field Manager</h2>
+                                    <div class="field-controls">
+                                        <div class="preset-controls">
+                                            <label for="fieldPresets" class="preset-label">
+                                                Field Presets
+                                                <div class="preset-info-icon" title="Choose predefined field combinations for different use cases">ℹ️</div>
+                                            </label>
+                                            <div class="preset-actions">
+                                                <select id="fieldPresets" class="preset-select">
+                                                    <option value="">Select Preset...</option>
+                                                    <option value="minimal">Minimal</option>
+                                                    <option value="essential">Essential</option>
+                                                    <option value="complete">Complete</option>
+                                                    <option value="custom">Custom</option>
+                                                </select>
+                                                <button id="resetPresets" class="btn btn-small" title="Reset to default state">🔄</button>
+                                            </div>
+                                        </div>
+                                        <span class="field-counter" id="fieldCounter">0 fields</span>
+                                    </div>
+                                </div>
+                                <div class="tool-panel-content">
+                                    <div class="field-manager" id="fieldManager">
+                                        <div class="no-data">Load emoji data to manage fields</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right side: JSON Preview -->
+                            <div class="json-preview-panel">
+                                <div class="json-section-in-tab">
+                                    <div class="json-panel input-panel">
+                                        <div class="tool-panel-header">
+                                            <h2>Original Structure</h2>
+                                            <span class="sample-info">Current emoji data</span>
+                                        </div>
+                                        <div class="json-view" id="originalStructure">
+                                            <div class="loading">Load a JSON file to see the emoji structure</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="panel-divider"></div>
+
+                                    <div class="json-panel output-panel">
+                                        <div class="tool-panel-header">
+                                            <h2>Output Structure</h2>
+                                            <span class="output-info">How your data will look</span>
+                                        </div>
+                                        <div class="json-view" id="outputStructure">
+                                            <div class="loading">Make field changes to see output preview</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <span class="field-counter" id="fieldCounter">0 fields</span>
                     </div>
-                </div>
-                <div class="field-manager" id="fieldManager">
-                    <div class="no-data">Load emoji data to manage fields</div>
-                </div>
-            </div>
 
-            <!-- Category Customization Section -->
-            <div class="category-section">
-                <div class="panel-header">
-                    <h2>Category Customization</h2>
-                    <div class="category-controls">
-                        <div class="category-actions">
-                            <button id="mergeCategoriesBtn" class="btn btn-small btn-primary" disabled title="Merge selected categories">🔗 Merge Selected</button>
-                            <button id="deleteSelectedBtn" class="btn btn-small btn-danger" disabled title="Delete selected categories">🗑️ Delete Selected</button>
-                            <button id="clearSelectionBtn" class="btn btn-small btn-secondary" disabled title="Clear selection">✖️ Clear Selection</button>
-                            <button id="resetCategories" class="btn btn-small btn-secondary" title="Reset to original categories">🔄 Reset All</button>
+                    <!-- Category Customization Tab -->
+                    <div class="tool-panel" id="category-customization-tab">
+                        <div class="tool-panel-header">
+                            <h2>Category Customization</h2>
+                            <div class="category-controls">
+                                <div class="category-actions">
+                                    <button id="mergeCategoriesBtn" class="btn btn-small btn-primary" disabled title="Merge selected categories">🔗 Merge Selected</button>
+                                    <button id="deleteSelectedBtn" class="btn btn-small btn-danger" disabled title="Delete selected categories">🗑️ Delete Selected</button>
+                                    <button id="clearSelectionBtn" class="btn btn-small btn-secondary" disabled title="Clear selection">✖️ Clear Selection</button>
+                                    <button id="resetCategories" class="btn btn-small btn-secondary" title="Reset to original categories">🔄 Reset All</button>
+                                </div>
+                                <span class="category-counter" id="categoryCounter">0 categories</span>
+                            </div>
                         </div>
-                        <span class="category-counter" id="categoryCounter">0 categories</span>
+                        <div class="tool-panel-content">
+                            <div class="category-manager" id="categoryManager">
+                                <div class="no-data">Load emoji data to customize categories</div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="category-manager" id="categoryManager">
-                    <div class="no-data">Load emoji data to customize categories</div>
-                </div>
-            </div>
 
-            <!-- Removed Emojis Section -->
-            <div class="removed-emojis-section">
-                <div class="panel-header">
-                    <h2>Removed Emojis</h2>
-                    <div class="removed-controls">
-                        <button id="addRemovedEmoji" class="btn btn-small btn-warning" title="Add current emoji to removed list">➖ Remove Current</button>
-                        <button id="bulkRemoveEmojis" class="btn btn-small btn-danger" title="Bulk remove emojis by pasting raw emoji characters">📝 Bulk Remove</button>
-                        <button id="clearRemovedEmojis" class="btn btn-small btn-secondary" title="Restore all removed emojis">🔄 Clear All</button>
-                        <span class="removed-counter" id="removedCounter">0 removed</span>
+                    <!-- Custom Search Terms Tab -->
+                    <div class="tool-panel" id="search-terms-tab">
+                        <div class="tool-panel-header">
+                            <h2>Custom Search Terms</h2>
+                            <div class="search-terms-controls">
+                                <div class="search-terms-actions">
+                                    <button id="addSearchTerm" class="btn btn-small btn-primary" title="Add custom search term to current emoji">🏷️ Add Term</button>
+                                    <button id="bulkAddTerms" class="btn btn-small btn-primary" title="Add multiple terms at once">📝 Bulk Add</button>
+                                    <button id="clearCustomTerms" class="btn btn-small btn-secondary" title="Clear all custom terms for current emoji">🗑️ Clear Terms</button>
+                                    <button id="resetAllCustomTerms" class="btn btn-small btn-danger" title="Reset all custom search terms">🔄 Reset All</button>
+                                </div>
+                                <span class="search-terms-counter" id="searchTermsCounter">0 custom terms</span>
+                            </div>
+                        </div>
+                        <div class="tool-panel-content">
+                            <div class="search-terms-manager" id="searchTermsManager">
+                                <div class="no-data">Load emoji data to add custom search terms</div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="removed-manager" id="removedManager">
-                    <div class="no-data">No emojis removed</div>
+
+                    <!-- Removed Emojis Tab -->
+                    <div class="tool-panel" id="removed-emojis-tab">
+                        <div class="tool-panel-header">
+                            <h2>Removed Emojis</h2>
+                            <div class="removed-controls">
+                                <button id="addRemovedEmoji" class="btn btn-small btn-warning" title="Add current emoji to removed list">➖ Remove Current</button>
+                                <button id="bulkRemoveEmojis" class="btn btn-small btn-danger" title="Bulk remove emojis by pasting raw emoji characters">📝 Bulk Remove</button>
+                                <button id="clearRemovedEmojis" class="btn btn-small btn-secondary" title="Restore all removed emojis">🔄 Clear All</button>
+                                <span class="removed-counter" id="removedCounter">0 removed</span>
+                            </div>
+                        </div>
+                        <div class="tool-panel-content">
+                            <div class="removed-manager" id="removedManager">
+                                <div class="no-data">No emojis removed</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

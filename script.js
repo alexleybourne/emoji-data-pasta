@@ -17,6 +17,7 @@ class EmojiDataPasta {
         this.excludedCategories = new Set(); // Set of categories to exclude completely
         this.originalCategories = new Map(); // Map of original category names to emoji counts
         this.selectedCategories = new Set(); // Track selected categories for multi-select operations
+        this.customSearchTerms = new Map(); // Map of emoji indices to arrays of custom search terms
         this.settings = {
             includeEmptyFields: true,
             prettifyJson: true,
@@ -187,6 +188,24 @@ class EmojiDataPasta {
         document.getElementById('deleteSelectedBtn').addEventListener('click', () => this.deleteSelectedCategories());
         document.getElementById('clearSelectionBtn').addEventListener('click', () => this.clearCategorySelection());
         document.getElementById('resetCategories').addEventListener('click', () => this.resetCategoryMappings());
+
+        // Custom search terms
+        document.getElementById('addSearchTerm').addEventListener('click', () => this.addCustomSearchTerm());
+        document.getElementById('clearCustomTerms').addEventListener('click', () => this.clearCustomTermsForCurrentEmoji());
+        document.getElementById('resetAllCustomTerms').addEventListener('click', () => this.resetAllCustomSearchTerms());
+
+        // Tab switching
+        document.querySelectorAll('.tool-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+        });
+
+        // Bulk add search terms
+        document.getElementById('bulkAddTerms').addEventListener('click', () => this.showBulkAddTermsModal());
+        document.getElementById('closeBulkAddTerms').addEventListener('click', () => this.hideBulkAddTermsModal());
+        document.getElementById('cancelBulkAddTerms').addEventListener('click', () => this.hideBulkAddTermsModal());
+        document.getElementById('analyzeTerms').addEventListener('click', () => this.analyzeInputTerms());
+        document.getElementById('executeBulkAddTerms').addEventListener('click', () => this.executeBulkAddTerms());
+        document.getElementById('bulkTermsInput').addEventListener('input', () => this.updateInputTermsStats());
     }
 
     initializeTooltips() {
@@ -436,6 +455,7 @@ class EmojiDataPasta {
         this.renderOriginalStructure();
         this.renderFieldManager();
         this.renderCategoryManager();
+        this.renderSearchTermsManager();
         this.renderRemovedManager();
         this.renderOutputPreview();
     }
@@ -603,7 +623,17 @@ class EmojiDataPasta {
     }
 
     renderOriginalStructure() {
-        const container = document.getElementById('originalStructure');
+        // Try tab-specific element first, then fall back to original
+        let container = document.getElementById('tabOriginalStructure');
+        if (!container) {
+            container = document.getElementById('originalStructure');
+        }
+        
+        if (!container) {
+            // Element not found, retry after delay
+            setTimeout(() => this.renderOriginalStructure(), 100);
+            return;
+        }
         
         if (this.originalData.length === 0) {
             container.innerHTML = '<div class="loading">Load a JSON file to see the emoji structure</div>';
@@ -619,6 +649,14 @@ class EmojiDataPasta {
         container.innerHTML = `
             <div class="json-code">${highlightedJson}</div>
         `;
+        
+        // Also update both containers if both exist
+        const allContainers = document.querySelectorAll('#originalStructure, #tabOriginalStructure');
+        allContainers.forEach(c => {
+            if (c) {
+                c.innerHTML = `<div class="json-code">${highlightedJson}</div>`;
+            }
+        });
     }
 
     highlightJsonWithRemovedFields(jsonString, emojiData) {
@@ -777,7 +815,17 @@ class EmojiDataPasta {
     }
 
     renderOutputPreview() {
-        const container = document.getElementById('outputStructure');
+        // Try tab-specific element first, then fall back to original
+        let container = document.getElementById('tabOutputStructure');
+        if (!container) {
+            container = document.getElementById('outputStructure');
+        }
+        
+        if (!container) {
+            // Element not found, retry after delay
+            setTimeout(() => this.renderOutputPreview(), 100);
+            return;
+        }
         
         if (this.originalData.length === 0) {
             container.innerHTML = '<div class="loading">Make field changes to see output preview</div>';
@@ -794,6 +842,14 @@ class EmojiDataPasta {
         container.innerHTML = `
             <div class="json-code">${highlightedJson}</div>
         `;
+        
+        // Also update both containers if both exist
+        const allContainers = document.querySelectorAll('#outputStructure, #tabOutputStructure');
+        allContainers.forEach(c => {
+            if (c) {
+                c.innerHTML = `<div class="json-code">${highlightedJson}</div>`;
+            }
+        });
     }
 
     showEmojiBrowser() {
@@ -871,14 +927,18 @@ class EmojiDataPasta {
             this.filteredEmojis = [...availableEmojis];
         } else {
             const searchTerm = query.toLowerCase();
-            this.filteredEmojis = availableEmojis.filter(emoji => 
-                (emoji.name && emoji.name.toLowerCase().includes(searchTerm)) ||
-                (emoji.short_name && emoji.short_name.toLowerCase().includes(searchTerm)) ||
-                (emoji.category && emoji.category.toLowerCase().includes(searchTerm)) ||
-                (emoji.subcategory && emoji.subcategory.toLowerCase().includes(searchTerm)) ||
-                (emoji.unified && emoji.unified.toLowerCase().includes(searchTerm)) ||
-                (emoji.short_names && emoji.short_names.some(name => name.toLowerCase().includes(searchTerm)))
-            );
+            this.filteredEmojis = availableEmojis.filter((emoji, originalIndex) => {
+                const emojiIndex = this.originalData.indexOf(emoji);
+                const customTerms = this.customSearchTerms.get(emojiIndex) || [];
+                
+                return (emoji.name && emoji.name.toLowerCase().includes(searchTerm)) ||
+                       (emoji.short_name && emoji.short_name.toLowerCase().includes(searchTerm)) ||
+                       (emoji.category && emoji.category.toLowerCase().includes(searchTerm)) ||
+                       (emoji.subcategory && emoji.subcategory.toLowerCase().includes(searchTerm)) ||
+                       (emoji.unified && emoji.unified.toLowerCase().includes(searchTerm)) ||
+                       (emoji.short_names && emoji.short_names.some(name => name.toLowerCase().includes(searchTerm))) ||
+                       (customTerms.some(term => term.toLowerCase().includes(searchTerm)));
+            });
         }
         
         // Reset display limit when searching
@@ -1043,6 +1103,9 @@ class EmojiDataPasta {
     createFilteredEmoji(originalEmoji) {
         const filtered = {};
         
+        // Get the index of this emoji in the original data
+        const emojiIndex = this.originalData.indexOf(originalEmoji);
+        
         // First, apply category mappings if any exist
         let newCategory = originalEmoji.category;
         if (this.categoryMappings.size > 0) {
@@ -1070,6 +1133,16 @@ class EmojiDataPasta {
             if (fieldName === 'category' && newCategory !== originalEmoji.category) {
                 // Use the mapped category instead of original
                 filtered[fieldName] = newCategory;
+            } else if (fieldName === 'short_names' && originalEmoji.hasOwnProperty(fieldName)) {
+                // Merge original short_names with custom search terms
+                const originalShortNames = originalEmoji[fieldName] || [];
+                const customTerms = this.customSearchTerms.get(emojiIndex) || [];
+                const mergedTerms = [...originalShortNames, ...customTerms];
+                
+                if (!this.settings.includeEmptyFields && mergedTerms.length === 0) {
+                    continue;
+                }
+                filtered[fieldName] = mergedTerms;
             } else if (originalEmoji.hasOwnProperty(fieldName)) {
                 const value = originalEmoji[fieldName];
                 
@@ -1298,6 +1371,8 @@ class EmojiDataPasta {
                 fieldsSelected: this.selectedFields.size,
                 fieldsRemoved: Object.keys(this.fieldSchema).filter(f => !this.selectedFields.has(f)),
                 fieldsKept: Array.from(this.selectedFields),
+                customSearchTermsCount: this.customSearchTerms.size,
+                totalCustomTerms: Array.from(this.customSearchTerms.values()).reduce((sum, terms) => sum + terms.length, 0),
                 processedAt: new Date().toISOString(),
                 settings: { ...this.settings }
             };
@@ -1308,6 +1383,7 @@ class EmojiDataPasta {
                 stats.expandedFields = Array.from(this.expandedFields);
                 stats.originalFieldSchema = this.fieldSchema;
                 stats.removedEmojis = Array.from(this.removedEmojis);
+                stats.customSearchTerms = Array.from(this.customSearchTerms.entries());
             }
 
             if (this.settings.arrayName && this.settings.arrayName.trim()) {
@@ -1618,6 +1694,13 @@ class EmojiDataPasta {
                 this.excludedCategories = new Set(state.excludedCategories);
             }
             
+            // Restore custom search terms
+            if (state.customSearchTerms) {
+                this.customSearchTerms = new Map(state.customSearchTerms);
+            }
+            
+            // Note: selectedCategories is not persisted as it's a UI state that should reset
+            
             console.log('Loaded persisted state');
         } catch (error) {
             console.warn('Failed to load persisted state:', error);
@@ -1635,6 +1718,7 @@ class EmojiDataPasta {
                 removedEmojis: Array.from(this.removedEmojis),
                 categoryMappings: Array.from(this.categoryMappings.entries()),
                 excludedCategories: Array.from(this.excludedCategories),
+                customSearchTerms: Array.from(this.customSearchTerms.entries()),
                 fieldSchema: this.fieldSchema,
                 settings: this.settings,
                 timestamp: Date.now()
@@ -1666,6 +1750,7 @@ class EmojiDataPasta {
             this.excludedCategories = new Set();
             this.originalCategories = new Map();
             this.selectedCategories = new Set();
+            this.customSearchTerms = new Map();
             this.currentPreset = '';
             this.customPreset = [];
             
@@ -2458,6 +2543,417 @@ class EmojiDataPasta {
         this.saveState();
         this.showMessage(`Excluded "${categoryName}" from output`, 'success');
     }
+
+    addCustomSearchTerm() {
+        if (this.originalData.length === 0) {
+            this.showMessage('No emoji data loaded', 'warning');
+            return;
+        }
+
+        const newTerm = prompt('Enter a new custom search term:');
+        if (!newTerm || !newTerm.trim()) return;
+
+        const term = newTerm.trim().toLowerCase();
+        
+        // Get existing custom terms for current emoji
+        const currentTerms = this.customSearchTerms.get(this.currentEmojiIndex) || [];
+        
+        // Check if term already exists
+        const emoji = this.originalData[this.currentEmojiIndex];
+        const existingTerms = [...(emoji.short_names || []), ...currentTerms];
+        
+        if (existingTerms.includes(term)) {
+            this.showMessage(`"${term}" already exists for this emoji`, 'warning');
+            return;
+        }
+
+        // Add the new term
+        currentTerms.push(term);
+        this.customSearchTerms.set(this.currentEmojiIndex, currentTerms);
+        
+        this.renderSearchTermsManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Added custom search term: "${term}"`, 'success');
+    }
+
+    clearCustomTermsForCurrentEmoji() {
+        if (this.originalData.length === 0) {
+            this.showMessage('No emoji data loaded', 'warning');
+            return;
+        }
+
+        const currentTerms = this.customSearchTerms.get(this.currentEmojiIndex);
+        if (!currentTerms || currentTerms.length === 0) {
+            this.showMessage('No custom terms to clear for this emoji', 'info');
+            return;
+        }
+
+        if (confirm(`Clear ${currentTerms.length} custom search term${currentTerms.length === 1 ? '' : 's'} for this emoji?`)) {
+            this.customSearchTerms.delete(this.currentEmojiIndex);
+            this.renderSearchTermsManager();
+            this.renderOutputPreview();
+            this.saveState();
+            this.showMessage('Cleared custom search terms for current emoji', 'success');
+        }
+    }
+
+    resetAllCustomSearchTerms() {
+        if (this.customSearchTerms.size === 0) {
+            this.showMessage('No custom search terms to reset', 'info');
+            return;
+        }
+
+        if (confirm(`Reset all custom search terms for ${this.customSearchTerms.size} emojis? This cannot be undone.`)) {
+            this.customSearchTerms.clear();
+            this.renderSearchTermsManager();
+            this.renderOutputPreview();
+            this.saveState();
+            this.showMessage('Reset all custom search terms', 'success');
+        }
+    }
+
+    removeCustomSearchTerm(emojiIndex, termToRemove) {
+        const currentTerms = this.customSearchTerms.get(emojiIndex) || [];
+        const updatedTerms = currentTerms.filter(term => term !== termToRemove);
+        
+        if (updatedTerms.length === 0) {
+            this.customSearchTerms.delete(emojiIndex);
+        } else {
+            this.customSearchTerms.set(emojiIndex, updatedTerms);
+        }
+
+        this.renderSearchTermsManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Removed custom term: "${termToRemove}"`, 'success');
+    }
+
+    renderSearchTermsManager() {
+        const container = document.getElementById('searchTermsManager');
+        const counter = document.getElementById('searchTermsCounter');
+        
+        if (this.originalData.length === 0) {
+            container.innerHTML = '<div class="no-data">Load emoji data to add custom search terms</div>';
+            counter.textContent = '0 custom terms';
+            return;
+        }
+
+        const currentEmoji = this.originalData[this.currentEmojiIndex];
+        const customTerms = this.customSearchTerms.get(this.currentEmojiIndex) || [];
+        const originalTerms = currentEmoji.short_names || [];
+        
+        // Update counter with total custom terms across all emojis
+        const totalCustomTerms = Array.from(this.customSearchTerms.values()).reduce((sum, terms) => sum + terms.length, 0);
+        counter.textContent = `${totalCustomTerms} custom term${totalCustomTerms === 1 ? '' : 's'}`;
+
+        // Try to render actual emoji
+        let emojiChar = '📝';
+        if (currentEmoji.unified) {
+            try {
+                const codePoints = currentEmoji.unified.split('-').map(hex => parseInt(hex, 16));
+                emojiChar = String.fromCodePoint(...codePoints);
+            } catch (e) {
+                emojiChar = '📝';
+            }
+        }
+
+        container.innerHTML = `
+            <div class="search-terms-container">
+                <!-- Current Emoji Display -->
+                <div class="current-emoji-display">
+                    <div class="current-emoji-icon">${emojiChar}</div>
+                    <div class="current-emoji-info">
+                        <div class="current-emoji-name">${currentEmoji.name || 'Unknown Emoji'}</div>
+                        <div class="current-emoji-details">
+                            <span class="emoji-detail-badge">Index: ${this.currentEmojiIndex}</span>
+                            <span class="emoji-detail-badge">Category: ${currentEmoji.category || 'N/A'}</span>
+                            ${currentEmoji.short_name ? `<span class="emoji-detail-badge">:${currentEmoji.short_name}:</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add New Term Input -->
+                <div class="search-terms-input-section">
+                    <input type="text" id="newSearchTermInput" placeholder="Enter new search term..." maxlength="50">
+                    <button class="btn btn-small btn-primary" onclick="emojiPasta.addSearchTermFromInput()">Add</button>
+                </div>
+
+                <!-- Original Terms -->
+                <div class="original-terms-section">
+                    <div class="terms-section-title">
+                        <span>📋 Original Terms (${originalTerms.length})</span>
+                    </div>
+                    ${originalTerms.length > 0 ? `
+                        <div class="terms-list">
+                            ${originalTerms.map(term => `
+                                <span class="term-tag original" title="Original search term">${term}</span>
+                            `).join('')}
+                        </div>
+                    ` : '<div class="no-terms-message">No original search terms</div>'}
+                </div>
+
+                <!-- Custom Terms -->
+                <div class="custom-terms-section">
+                    <div class="terms-section-title">
+                        <span>🏷️ Custom Terms (${customTerms.length})</span>
+                    </div>
+                    ${customTerms.length > 0 ? `
+                        <div class="terms-list">
+                            ${customTerms.map(term => `
+                                <span class="term-tag custom" title="Custom search term">
+                                    ${term}
+                                    <button class="term-remove-btn" onclick="emojiPasta.removeCustomSearchTerm(${this.currentEmojiIndex}, '${term}')" title="Remove term">×</button>
+                                </span>
+                            `).join('')}
+                        </div>
+                    ` : '<div class="no-terms-message">No custom search terms added</div>'}
+                </div>
+            </div>
+        `;
+
+        // Add Enter key listener to input
+        const input = document.getElementById('newSearchTermInput');
+        if (input) {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addSearchTermFromInput();
+                }
+            });
+        }
+    }
+
+    addSearchTermFromInput() {
+        const input = document.getElementById('newSearchTermInput');
+        if (!input) return;
+
+        const newTerm = input.value.trim().toLowerCase();
+        if (!newTerm) {
+            this.showMessage('Please enter a search term', 'warning');
+            return;
+        }
+
+        // Get existing terms for current emoji
+        const currentTerms = this.customSearchTerms.get(this.currentEmojiIndex) || [];
+        const emoji = this.originalData[this.currentEmojiIndex];
+        const existingTerms = [...(emoji.short_names || []), ...currentTerms];
+        
+        if (existingTerms.includes(newTerm)) {
+            this.showMessage(`"${newTerm}" already exists for this emoji`, 'warning');
+            input.focus();
+            return;
+        }
+
+        // Add the new term
+        currentTerms.push(newTerm);
+        this.customSearchTerms.set(this.currentEmojiIndex, currentTerms);
+        
+        // Clear input and re-render
+        input.value = '';
+        this.renderSearchTermsManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Added custom search term: "${newTerm}"`, 'success');
+        
+        // Focus input for easy addition of more terms
+        setTimeout(() => input.focus(), 100);
+    }
+
+    switchTab(tabName) {
+        // Remove active class from all tabs and panels
+        document.querySelectorAll('.tool-tab').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tool-panel').forEach(panel => panel.classList.remove('active'));
+        
+        // Add active class to selected tab and panel
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+        
+        // Force update JSON views when switching to field manager tab
+        if (tabName === 'field-manager' && this.originalData.length > 0) {
+            setTimeout(() => {
+                this.renderOriginalStructure();
+                this.renderOutputPreview();
+            }, 10);
+        }
+        
+        // Update search terms when switching to that tab
+        if (tabName === 'search-terms' && this.originalData.length > 0) {
+            setTimeout(() => {
+                this.renderSearchTermsManager();
+            }, 10);
+        }
+    }
+
+    showBulkAddTermsModal() {
+        if (this.originalData.length === 0) {
+            this.showMessage('No emoji data loaded', 'warning');
+            return;
+        }
+
+        document.getElementById('bulkAddTermsModal').classList.add('active');
+        
+        // Reset modal state
+        document.getElementById('bulkTermsInput').value = '';
+        document.getElementById('bulkAddPreview').style.display = 'none';
+        document.getElementById('executeBulkAddTerms').disabled = true;
+        this.bulkAddMatches = [];
+        
+        // Update current emoji display in modal
+        this.updateBulkAddCurrentEmoji();
+        this.updateInputTermsStats();
+        
+        // Add click outside to close
+        setTimeout(() => {
+            document.addEventListener('click', this.closeBulkAddTermsOnClickOutside);
+        }, 100);
+    }
+
+    hideBulkAddTermsModal() {
+        document.getElementById('bulkAddTermsModal').classList.remove('active');
+        document.removeEventListener('click', this.closeBulkAddTermsOnClickOutside);
+    }
+
+    closeBulkAddTermsOnClickOutside = (e) => {
+        const modal = document.getElementById('bulkAddTermsModal');
+        const content = modal.querySelector('.bulk-add-terms-content');
+        if (modal.classList.contains('active') && !content.contains(e.target)) {
+            this.hideBulkAddTermsModal();
+        }
+    }
+
+    updateBulkAddCurrentEmoji() {
+        const currentEmoji = this.originalData[this.currentEmojiIndex];
+        
+        // Try to render actual emoji
+        let emojiChar = '📝';
+        if (currentEmoji.unified) {
+            try {
+                const codePoints = currentEmoji.unified.split('-').map(hex => parseInt(hex, 16));
+                emojiChar = String.fromCodePoint(...codePoints);
+            } catch (e) {
+                emojiChar = '📝';
+            }
+        }
+
+        document.getElementById('bulkAddCurrentEmoji').innerHTML = `
+            <div class="current-emoji-icon">${emojiChar}</div>
+            <div class="current-emoji-info">
+                <div class="current-emoji-name">${currentEmoji.name || 'Unknown Emoji'}</div>
+                <div class="current-emoji-details">
+                    <span class="emoji-detail-badge">Index: ${this.currentEmojiIndex}</span>
+                    <span class="emoji-detail-badge">Category: ${currentEmoji.category || 'N/A'}</span>
+                    ${currentEmoji.short_name ? `<span class="emoji-detail-badge">:${currentEmoji.short_name}:</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    updateInputTermsStats() {
+        const input = document.getElementById('bulkTermsInput').value;
+        const terms = this.parseInputTerms(input);
+        const count = terms.length;
+        
+        document.getElementById('inputTermsCount').textContent = `${count} term${count !== 1 ? 's' : ''} detected`;
+        
+        // Hide preview when input changes
+        document.getElementById('bulkAddPreview').style.display = 'none';
+        document.getElementById('executeBulkAddTerms').disabled = true;
+    }
+
+    parseInputTerms(input) {
+        if (!input.trim()) return [];
+        
+        // Split by newlines and commas, then clean up
+        const terms = input
+            .split(/[\n,]/)
+            .map(term => term.trim().toLowerCase())
+            .filter(term => term.length > 0)
+            .filter((term, index, arr) => arr.indexOf(term) === index); // Remove duplicates
+        
+        return terms;
+    }
+
+    analyzeInputTerms() {
+        const input = document.getElementById('bulkTermsInput').value;
+        if (!input.trim()) {
+            this.showMessage('Please enter some search terms first', 'warning');
+            return;
+        }
+
+        const inputTerms = this.parseInputTerms(input);
+        if (inputTerms.length === 0) {
+            this.showMessage('No valid terms detected in the input', 'warning');
+            return;
+        }
+
+        // Get existing terms for current emoji
+        const currentTerms = this.customSearchTerms.get(this.currentEmojiIndex) || [];
+        const emoji = this.originalData[this.currentEmojiIndex];
+        const existingTerms = [...(emoji.short_names || []), ...currentTerms];
+        
+        // Filter out terms that already exist
+        const newTerms = inputTerms.filter(term => !existingTerms.includes(term));
+        const duplicateTerms = inputTerms.filter(term => existingTerms.includes(term));
+
+        this.bulkAddMatches = newTerms;
+        this.displayBulkAddPreview(newTerms, duplicateTerms);
+    }
+
+    displayBulkAddPreview(newTerms, duplicateTerms) {
+        const previewContainer = document.getElementById('bulkAddPreview');
+        const previewList = document.getElementById('termsPreviewList');
+        const previewStats = document.getElementById('termsPreviewStats');
+        
+        if (newTerms.length === 0) {
+            previewContainer.style.display = 'none';
+            document.getElementById('executeBulkAddTerms').disabled = true;
+            
+            if (duplicateTerms.length > 0) {
+                this.showMessage(`All ${duplicateTerms.length} terms already exist for this emoji`, 'info');
+            }
+            return;
+        }
+
+        // Display new terms
+        previewList.innerHTML = newTerms.map(term => `
+            <span class="preview-term-tag">${term}</span>
+        `).join('');
+
+        let statsText = `${newTerms.length} new term${newTerms.length !== 1 ? 's' : ''} will be added`;
+        if (duplicateTerms.length > 0) {
+            statsText += ` • ${duplicateTerms.length} duplicate${duplicateTerms.length !== 1 ? 's' : ''} skipped`;
+        }
+        
+        previewStats.textContent = statsText;
+        previewContainer.style.display = 'block';
+        document.getElementById('executeBulkAddTerms').disabled = false;
+    }
+
+    executeBulkAddTerms() {
+        if (!this.bulkAddMatches || this.bulkAddMatches.length === 0) {
+            this.showMessage('No terms to add', 'warning');
+            return;
+        }
+
+        const count = this.bulkAddMatches.length;
+        
+        // Get existing custom terms for current emoji
+        const currentTerms = this.customSearchTerms.get(this.currentEmojiIndex) || [];
+        
+        // Add all new terms
+        currentTerms.push(...this.bulkAddMatches);
+        this.customSearchTerms.set(this.currentEmojiIndex, currentTerms);
+
+        // Update displays
+        this.renderSearchTermsManager();
+        this.renderOutputPreview();
+        this.saveState();
+
+        // Close modal and show success message
+        this.hideBulkAddTermsModal();
+        this.showMessage(`Bulk added ${count} search term${count !== 1 ? 's' : ''} to current emoji`, 'success');
+    }
 }
 
 // Add animations
@@ -2478,3 +2974,13 @@ document.head.appendChild(style);
 const emojiPasta = new EmojiDataPasta();
 // Make it globally accessible for onclick handlers
 window.app = emojiPasta;
+
+// Force render JSON views when DOM is ready and if there's data
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (emojiPasta.originalData.length > 0) {
+            emojiPasta.renderOriginalStructure();
+            emojiPasta.renderOutputPreview();
+        }
+    }, 100);
+});
