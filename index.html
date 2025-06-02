@@ -45,6 +45,41 @@
             </div>
         </div>
 
+        <!-- Unified Navigation Header with Emoji Display and Tabs -->
+        <div class="navigation-header">
+            <!-- Emoji Display Section -->
+            <div class="emoji-section">
+                <div class="emoji-display" id="emojiDisplay">
+                    <div class="emoji-icon" id="emojiIcon">🤔</div>
+                    <div class="emoji-info">
+                        <div class="emoji-name" id="emojiDisplayName">Select an emoji</div>
+                        <div class="emoji-variant-info" id="variantInfo" style="display: none;">
+                            <span class="variant-label">Variant:</span>
+                            <select id="variantSelect" class="variant-select">
+                                <option value="default">Default</option>
+                            </select>
+                            <button class="btn btn-small" id="resetVariant">🔄</button>
+                        </div>
+                    </div>
+                    <div class="emoji-navigation">
+                        <button class="btn btn-small" id="prevEmoji">←</button>
+                        <span class="emoji-index" id="emojiIndex">0 / 0</span>
+                        <button class="btn btn-small" id="nextEmoji">→</button>
+                        <button class="btn btn-small" id="randomEmoji">🎲</button>
+                        <button class="btn btn-small" id="quickBrowse" title="Browse Emoji Data">🔍</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tools-tabs">
+                <button class="tool-tab active" data-tab="field-manager">📊 Fields & Preview</button>
+                <button class="tool-tab" data-tab="category-customization">📁 Categories</button>
+                <button class="tool-tab" data-tab="search-terms">🏷️ Search Terms</button>
+                <button class="tool-tab" data-tab="removed-emojis">🗑️ Removed Emojis</button>
+            </div>
+        </div>
+
         <!-- Emoji Browser Modal -->
         <div class="emoji-browser-modal" id="emojiBrowserModal">
             <div class="emoji-browser-content">
@@ -175,30 +210,6 @@ word1, word2, word3" rows="6"></textarea>
         </div>
 
         <div class="main-content">
-            <!-- Top Section - Emoji Display -->
-            <div class="emoji-section">
-                <div class="emoji-display" id="emojiDisplay">
-                    <div class="emoji-icon" id="emojiIcon">🤔</div>
-                    <div class="emoji-info">
-                        <div class="emoji-name" id="emojiDisplayName">Select an emoji</div>
-                        <div class="emoji-variant-info" id="variantInfo" style="display: none;">
-                            <span class="variant-label">Variant:</span>
-                            <select id="variantSelect" class="variant-select">
-                                <option value="default">Default</option>
-                            </select>
-                            <button class="btn btn-small" id="resetVariant">🔄</button>
-                        </div>
-                    </div>
-                    <div class="emoji-navigation">
-                        <button class="btn btn-small" id="prevEmoji">←</button>
-                        <span class="emoji-index" id="emojiIndex">0 / 0</span>
-                        <button class="btn btn-small" id="nextEmoji">→</button>
-                        <button class="btn btn-small" id="randomEmoji">🎲</button>
-                        <button class="btn btn-small" id="quickBrowse" title="Browse Emoji Data">🔍</button>
-                    </div>
-                </div>
-            </div>
-
             <!-- Middle Section - Input/Output Split -->
             <div class="json-section">
                 <div class="json-panel input-panel">
@@ -246,13 +257,6 @@ word1, word2, word3" rows="6"></textarea>
 
             <!-- Tabbed Tools Section -->
             <div class="tools-section">
-                <div class="tools-tabs">
-                    <button class="tool-tab active" data-tab="field-manager">📊 Fields & Preview</button>
-                    <button class="tool-tab" data-tab="category-customization">📁 Categories</button>
-                    <button class="tool-tab" data-tab="search-terms">🏷️ Search Terms</button>
-                    <button class="tool-tab" data-tab="removed-emojis">🗑️ Removed Emojis</button>
-                </div>
-
                 <div class="tools-content">
                     <!-- Combined Fields & JSON Preview Tab -->
                     <div class="tool-panel active" id="field-manager-tab">
@@ -265,7 +269,7 @@ word1, word2, word3" rows="6"></textarea>
                                         <div class="preset-controls">
                                             <label for="fieldPresets" class="preset-label">
                                                 Field Presets
-                                                <div class="preset-info-icon" title="Choose predefined field combinations for different use cases">ℹ️</div>
+                                                <div class="preset-info-icon" title="Choose predefined field combinations for different use cases">ℹ</div>
                                             </label>
                                             <div class="preset-actions">
                                                 <select id="fieldPresets" class="preset-select">

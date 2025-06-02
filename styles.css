@@ -8,7 +8,7 @@
 :root {
     /* Dark theme (default) */
     --bg-primary: #0a0a0a;
-    --bg-secondary: #111111;
+    --bg-secondary: #111111d0;
     --bg-tertiary: #1a1a1a;
     --bg-elevated: #222222;
     --text-primary: #ededed;
@@ -35,7 +35,7 @@
 :root.light {
     /* Light theme */
     --bg-primary: #fafafa;
-    --bg-secondary: #ffffff;
+    --bg-secondary: #ffffffd0;
     --bg-tertiary: #f9f9f9;
     --bg-elevated: #ffffff;
     --text-primary: #171717;
@@ -154,6 +154,78 @@ body {
     top: 50px;
     z-index: 90;
     backdrop-filter: blur(10px);
+}
+
+/* Unified Navigation Header - Sticky with emoji display and tabs */
+.navigation-header {
+    border-bottom: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
+    position: sticky;
+    top: 110px; /* Adjusted for header (50px) + toolbar height (~80px) */
+    z-index: 80;
+    backdrop-filter: blur(20px);
+    flex-shrink: 0;
+}
+
+/* Emoji Section within Navigation Header */
+.navigation-header .emoji-section {
+    border-bottom: 1px solid var(--border-primary);
+    min-height: 44px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.navigation-header .emoji-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    width: 100%;
+}
+
+/* Tools Tabs within Navigation Header */
+.navigation-header .tools-tabs {
+    display: flex;
+    padding: 0 1rem;
+    gap: 0.25rem;
+    position: relative;
+}
+
+.navigation-header .tool-tab {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    padding: 0.75rem 1.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    position: relative;
+    top: 1px;
+    opacity: 0.4;
+    height: 44px;
+}
+
+.navigation-header .tool-tab:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    opacity: 0.8;
+}
+
+.navigation-header .tool-tab.active {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-primary);
+    border-bottom: none;
+    z-index: 1;
+    opacity: 1;
+    font-weight: 600;
+    top: 2px;
 }
 
 .controls {
@@ -316,25 +388,25 @@ input[type="text"] {
     min-height: 0;
 }
 
-/* Top Section - Emoji Display (Compact & Sticky) */
-.emoji-section {
+/* Top Section - Emoji Display (Compact & Sticky) - MOVED TO NAVIGATION-HEADER */
+/* .emoji-section {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-primary);
     padding: 0.75rem 1.5rem;
     min-height: 60px;
     flex-shrink: 0;
     position: sticky;
-    top: 100px;
+    top: 60px;
     z-index: 80;
     backdrop-filter: blur(10px);
-}
+} */
 
 .emoji-display {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    max-width: 1200px;
+    padding: 0 1.5rem;
     margin: 0 auto;
 }
 
@@ -360,7 +432,6 @@ input[type="text"] {
     font-size: 0.95rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 0.2rem;
 }
 
 .emoji-variant-info {
@@ -437,88 +508,6 @@ input[type="text"] {
     min-height: 0;
 }
 
-.tools-tabs {
-    display: flex;
-    background: var(--bg-tertiary);
-    border-bottom: 1px solid var(--border-primary);
-    padding: 0 1rem;
-    gap: 0.25rem;
-    flex-shrink: 0;
-}
-
-.tool-tab {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
-    border-bottom: none;
-    border-radius: 6px 6px 0 0;
-    padding: 0.75rem 1.5rem;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    position: relative;
-    top: 1px;
-    opacity: 0.6;
-}
-
-.tool-tab:hover {
-    background: var(--bg-elevated);
-    color: var(--text-primary);
-    opacity: 0.8;
-}
-
-.tool-tab.active {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    border-color: var(--border-primary);
-    z-index: 1;
-    opacity: 1;
-    font-weight: 600;
-    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.tools-content {
-    flex: 1;
-    display: flex;
-    min-height: 0;
-}
-
-.tool-panel {
-    flex: 1;
-    display: none;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.tool-panel.active {
-    display: flex;
-}
-
-.tool-panel-header {
-    background: var(--bg-secondary);
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--border-primary);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.tool-panel-header h2 {
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    font-weight: 600;
-}
-
-.tool-panel-content {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-height: 0;
-}
-
 /* Update existing field manager, category manager etc to work in tabs */
 .field-manager, .category-manager, .search-terms-manager, .removed-manager {
     padding: 0.75rem;
@@ -577,7 +566,7 @@ input[type="text"] {
 
 .preset-controls {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.5rem;
 }
 
@@ -1373,9 +1362,59 @@ input[type="text"] {
 
 @media (max-width: 768px) {
     .toolbar {
-        flex-direction: column;
-        align-items: stretch;
         padding: 0.5rem 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+
+    .controls, .actions {
+        justify-content: center;
+    }
+
+    .header {
+        padding: 0.5rem 1rem;
+        text-align: center;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-height: auto;
+    }
+
+    .header-right {
+        justify-content: center;
+        gap: 1rem;
+    }
+
+    .attribution {
+        text-align: center;
+    }
+
+    /* Mobile styles for navigation-header */
+    .navigation-header .emoji-section {
+        padding: 0.5rem 1rem;
+        min-height: auto;
+    }
+
+    .navigation-header .emoji-display {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .navigation-header .tools-tabs {
+        background: var(--bg-secondary);
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 0.5rem;
+        gap: 0.25rem;
+    }
+
+    .navigation-header .tool-tab {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+        flex: 1;
+        min-width: 120px;
+        text-align: center;
     }
     
     .controls, .actions {
@@ -1403,7 +1442,7 @@ input[type="text"] {
     
     .emoji-section {
         padding: 0.5rem 1rem;
-        min-height: 50px;
+        min-height: 44px;
     }
     
     .json-section {
@@ -3106,7 +3145,6 @@ select:focus {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: 8px;
-    margin-bottom: 0.75rem;
     cursor: pointer;
     transition: all 0.2s ease;
     overflow: hidden;
@@ -3140,10 +3178,12 @@ select:focus {
 
 /* Left panel - Original emoji data */
 .search-terms-left-panel {
-    flex: 1;
     padding: 0.75rem;
     border-right: 1px solid var(--border-secondary);
     min-width: 0;
+    display: flex;
+    flex-direction: row;
+    width: 50%;
 }
 
 /* Right panel - Custom terms */
@@ -3160,6 +3200,7 @@ select:focus {
     align-items: flex-start;
     gap: 0.75rem;
     margin-bottom: 0.75rem;
+    width: 50%;
 }
 
 .search-terms-emoji-icon {
@@ -3211,7 +3252,7 @@ select:focus {
 
 /* Original terms section */
 .search-terms-original {
-    margin-top: 0.5rem;
+    margin-top: 0;
 }
 
 .original-terms-label {
@@ -3315,6 +3356,7 @@ select:focus {
     align-items: center;
     gap: 0.25rem;
     transition: all 0.2s ease;
+    height: 24px;
 }
 
 .custom-term-tag:hover {
@@ -3403,4 +3445,45 @@ select:focus {
     .no-custom-terms {
         font-size: 0.7rem;
     }
+}
+
+.tools-content {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+.tool-panel {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.tool-panel.active {
+    display: flex;
+}
+
+.tool-panel-header {
+    background: var(--bg-secondary);
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    height: 44px;
+}
+
+.tool-panel-header h2 {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.tool-panel-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
 } 
