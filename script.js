@@ -2913,15 +2913,16 @@ class EmojiDataPasta {
                     categoryData.type === 'mapping' ? 'custom-mapping' : ''
                 ].filter(Boolean).join(' ');
                 
-                html += `<div class="${cssClasses}" data-category="${categoryKey}" onclick="emojiPasta.toggleCategorySelection('${categoryKey}')">
+                html += `<div class="${cssClasses}" data-category="${categoryKey}" onclick="app.toggleCategorySelection('${categoryKey}')">
                     <div class="category-card-header">
                         <div class="category-name">${categoryData.name}</div>
                         <div class="category-emoji-count">${categoryData.count}</div>
                     </div>
                     
                     <div class="category-card-actions">
-                        <button class="category-action-btn rename" onclick="event.stopPropagation(); emojiPasta.renameCategoryInline('${categoryKey}')" title="Rename">✏️</button>
-                        <button class="category-action-btn delete" onclick="event.stopPropagation(); emojiPasta.deleteSingleCategory('${categoryKey}')" title="Delete">🗑️</button>
+                        <button class="category-action-btn view-emojis" onclick="event.stopPropagation(); app.showCategoryEmojis('${categoryKey}')" title="View Emojis">👁️</button>
+                        <button class="category-action-btn rename" onclick="event.stopPropagation(); app.renameCategoryInline('${categoryKey}')" title="Rename">✏️</button>
+                        <button class="category-action-btn delete" onclick="event.stopPropagation(); app.deleteSingleCategory('${categoryKey}')" title="Delete">🗑️</button>
                     </div>
                     
                     ${categoryData.originalSources.length > 1 ? 
@@ -4087,6 +4088,266 @@ class EmojiDataPasta {
         // Clean up applied changes data
         delete this.appliedChanges;
         delete this.uploadedEmojiData;
+    }
+
+    showCategoryEmojis(categoryKey) {
+        console.log(`🔍 Showing emojis for category: ${categoryKey}`);
+        
+        // Build list of all categories (same logic as renderCategoryManager)
+        const allCategories = new Map();
+        
+        // Add original categories that aren't mapped to anything
+        const mappedOriginalCategories = new Set();
+        for (const originalCategories of this.categoryMappings.values()) {
+            originalCategories.forEach(cat => mappedOriginalCategories.add(cat));
+        }
+        
+        for (const [category, count] of this.originalCategories) {
+            if (!mappedOriginalCategories.has(category)) {
+                allCategories.set(category, {
+                    name: category,
+                    count: count,
+                    type: 'original',
+                    isExcluded: this.excludedCategories.has(category),
+                    originalSources: [category]
+                });
+            }
+        }
+        
+        // Add custom mappings
+        for (const [mappingName, originalCategories] of this.categoryMappings) {
+            const totalCount = originalCategories.reduce((sum, cat) => sum + (this.originalCategories.get(cat) || 0), 0);
+            allCategories.set(mappingName, {
+                name: mappingName,
+                count: totalCount,
+                type: 'mapping',
+                isExcluded: this.excludedCategories.has(mappingName),
+                originalSources: originalCategories
+            });
+        }
+        
+        // Find the category data
+        const categoryData = allCategories.get(categoryKey);
+        
+        if (!categoryData) {
+            this.showMessage('Category not found', 'error');
+            return;
+        }
+        
+        // Get all emojis for this category
+        const categoryEmojis = [];
+        const originalCategories = categoryData.originalSources || [categoryKey];
+        
+        this.originalData.forEach((emoji, index) => {
+            // Skip removed emojis
+            if (this.removedEmojis.has(index)) return;
+            
+            const emojiCategory = emoji.category;
+            if (originalCategories.includes(emojiCategory)) {
+                categoryEmojis.push({ emoji, index });
+            }
+        });
+        
+        // Update modal title and count
+        const title = document.getElementById('categoryEmojisTitle');
+        const grid = document.getElementById('categoryEmojisGrid');
+        const footer = document.getElementById('categoryEmojisFooter');
+        
+        title.innerHTML = `📁 ${categoryData.name} <span class="category-emojis-count">${categoryEmojis.length}</span>`;
+        footer.textContent = `${categoryEmojis.length} emojis in this category • Click any emoji to select it`;
+        
+        // Render emoji grid
+        let html = '';
+        categoryEmojis.forEach(({ emoji, index }) => {
+            const isCurrentEmoji = index === this.currentEmojiIndex;
+            
+            // Get emoji character
+            let emojiChar = '📝';
+            try {
+                if (emoji.unified) {
+                    const codePoints = emoji.unified.split('-').map(hex => parseInt(hex, 16));
+                    emojiChar = String.fromCodePoint(...codePoints);
+                }
+            } catch (e) {
+                // fallback already set
+            }
+            
+            // Create metadata badges
+            const badges = [];
+            if (emoji.subcategory) badges.push(emoji.subcategory);
+            if (emoji.added_in) badges.push(`v${emoji.added_in}`);
+            if (emoji.has_img_apple) badges.push('Apple');
+            if (emoji.has_img_google) badges.push('Google');
+            
+            const badgesHtml = badges.map(badge => 
+                `<span class="category-emoji-badge">${badge}</span>`
+            ).join('');
+            
+            html += `
+                <div class="category-emoji-item ${isCurrentEmoji ? 'current-emoji' : ''}" 
+                     onclick="app.selectEmojiFromCategory(${index})">
+                    <div class="category-emoji-header">
+                        <div class="category-emoji-icon">${emojiChar}</div>
+                        <div class="category-emoji-info">
+                            <div class="category-emoji-name">${emoji.name || 'Unnamed Emoji'}</div>
+                            <div class="category-emoji-meta">
+                                ${badgesHtml}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="category-emoji-actions">
+                        <button class="category-emoji-copy-btn" onclick="event.stopPropagation(); app.copyEmojiName('${(emoji.name || 'Unnamed Emoji').replace(/'/g, "\\'")}', this)" title="Copy name to clipboard">
+                            📋 Copy Name
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        if (categoryEmojis.length === 0) {
+            html = '<div class="no-data">No emojis found in this category</div>';
+        }
+        
+        grid.innerHTML = html;
+        
+        // Show modal
+        const modal = document.getElementById('categoryEmojisModal');
+        modal.classList.add('active');
+        
+        // Add close event listeners
+        this.setupCategoryEmojisModalListeners();
+    }
+
+    setupCategoryEmojisModalListeners() {
+        const modal = document.getElementById('categoryEmojisModal');
+        const closeBtn = document.getElementById('closeCategoryEmojis');
+        
+        // Close button
+        closeBtn.onclick = () => this.hideCategoryEmojis();
+        
+        // Click outside to close
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                this.hideCategoryEmojis();
+            }
+        };
+        
+        // Escape key to close
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                this.hideCategoryEmojis();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
+    }
+
+    hideCategoryEmojis() {
+        const modal = document.getElementById('categoryEmojisModal');
+        modal.classList.remove('active');
+    }
+
+    selectEmojiFromCategory(emojiIndex) {
+        // Update current emoji
+        this.currentEmojiIndex = emojiIndex;
+        this.currentVariant = 'default';
+        
+        // Update displays
+        this.updateEmojiDisplay();
+        this.renderOriginalStructure();
+        this.renderOutputPreview();
+        this.renderSearchTermsManager(); // Update search terms view
+        this.saveState();
+        
+        // Close modal
+        this.hideCategoryEmojis();
+        
+        // Show success message
+        const emoji = this.originalData[emojiIndex];
+        this.showMessage(`Selected: ${emoji.name || 'Unknown Emoji'}`, 'success');
+        
+        // Scroll to top of main content if needed
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    copyEmojiName(emojiName, button) {
+        // Use modern Clipboard API if available
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(emojiName).then(() => {
+                this.showCopySuccess(button, emojiName);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                this.fallbackCopyTextToClipboard(emojiName, button);
+            });
+        } else {
+            // Fallback for older browsers
+            this.fallbackCopyTextToClipboard(emojiName, button);
+        }
+    }
+
+    fallbackCopyTextToClipboard(text, button) {
+        // Create a temporary input element
+        const tempInput = document.createElement('input');
+        tempInput.value = text;
+        document.body.appendChild(tempInput);
+        
+        // Select the text inside the input
+        tempInput.select();
+        tempInput.setSelectionRange(0, 99999); // For mobile devices
+        
+        try {
+            // Copy the text to the clipboard
+            const successful = document.execCommand('copy');
+            if (successful) {
+                this.showCopySuccess(button, text);
+            } else {
+                this.showCopyError(button);
+            }
+        } catch (err) {
+            console.error('Fallback: Copying text command was unsuccessful', err);
+            this.showCopyError(button);
+        }
+        
+        // Remove the temporary input element
+        document.body.removeChild(tempInput);
+    }
+
+    showCopySuccess(button, text) {
+        // Change the button text to indicate success
+        button.innerHTML = '✅ Copied!';
+        button.style.background = 'var(--success)';
+        button.style.borderColor = 'var(--success)';
+        button.style.color = '#ffffff';
+        
+        // Show success message
+        this.showMessage(`Copied "${text}" to clipboard`, 'success');
+        
+        // Reset the button after a short delay
+        setTimeout(() => {
+            button.innerHTML = '📋 Copy Name';
+            button.style.background = '';
+            button.style.borderColor = '';
+            button.style.color = '';
+        }, 2000);
+    }
+
+    showCopyError(button) {
+        // Change the button text to indicate error
+        button.innerHTML = '❌ Failed';
+        button.style.background = 'var(--danger)';
+        button.style.borderColor = 'var(--danger)';
+        button.style.color = '#ffffff';
+        
+        // Show error message
+        this.showMessage('Failed to copy to clipboard', 'error');
+        
+        // Reset the button after a short delay
+        setTimeout(() => {
+            button.innerHTML = '📋 Copy Name';
+            button.style.background = '';
+            button.style.borderColor = '';
+            button.style.color = '';
+        }, 2000);
     }
 }
 
