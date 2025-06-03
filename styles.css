@@ -1147,6 +1147,7 @@ input[type="text"] {
     padding: 1.5rem;
     max-height: 70vh;
     overflow-y: auto;
+    backdrop-filter: blur(10px);
 }
 
 .settings-content::-webkit-scrollbar {

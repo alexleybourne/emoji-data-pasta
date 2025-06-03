@@ -1238,14 +1238,25 @@ class EmojiDataPasta {
     }
 
     showSettingsPanel() {
+        console.log('showSettingsPanel called');
+        
         if (this.originalData.length === 0) {
+            console.warn('No data loaded');
             this.showMessage('No data to save. Please load a file first.', 'warning');
             return;
         }
 
-        document.getElementById('settingsPanel').classList.add('active');
+        console.log('Data is available, showing settings panel');
+        const settingsPanel = document.getElementById('settingsPanel');
+        if (!settingsPanel) {
+            console.error('Settings panel element not found');
+            return;
+        }
+        
+        settingsPanel.classList.add('active');
         
         // Update settings UI to reflect current values
+        console.log('Updating settings UI elements...');
         document.getElementById('saveSettings').checked = this.settings.saveSettings;
         document.getElementById('includeEmptyFields').checked = this.settings.includeEmptyFields;
         document.getElementById('prettifyJson').checked = this.settings.prettifyJson;
@@ -1344,7 +1355,7 @@ class EmojiDataPasta {
             }
             
             const filtered = this.createFilteredEmoji(emoji);
-            if (Object.keys(filtered).length > 0) {
+            if (filtered && Object.keys(filtered).length > 0) {
                 processedData.push(filtered);
             }
         });
@@ -1512,26 +1523,59 @@ class EmojiDataPasta {
     }
 
     updateFileSizePreview() {
-        // Calculate original file size
-        const originalJson = JSON.stringify(this.originalData);
-        const originalSize = new Blob([originalJson]).size;
-        
-        // Calculate new file size with current settings
-        const { finalData } = this.prepareExportData();
-        const newJson = this.settings.prettifyJson 
-            ? JSON.stringify(finalData, null, 2)
-            : JSON.stringify(finalData);
-        const newSize = new Blob([newJson]).size;
-        
-        // Calculate savings
-        const savings = originalSize - newSize;
-        const savingsPercent = ((savings / originalSize) * 100).toFixed(1);
-        
-        // Update UI
-        document.getElementById('originalSize').textContent = this.formatFileSize(originalSize);
-        document.getElementById('newSize').textContent = this.formatFileSize(newSize);
-        document.getElementById('spaceSaved').textContent = `${this.formatFileSize(savings)} (${savingsPercent}%)`;
-        document.getElementById('fileSizeComparison').style.display = 'block';
+        try {
+            console.log('Starting updateFileSizePreview...');
+            
+            // Check if we have data
+            if (!this.originalData || this.originalData.length === 0) {
+                console.warn('No original data available for file size preview');
+                document.getElementById('fileSizeComparison').style.display = 'none';
+                return;
+            }
+            
+            console.log('Original data length:', this.originalData.length);
+            
+            // Calculate original file size
+            const originalJson = JSON.stringify(this.originalData);
+            const originalSize = new Blob([originalJson]).size;
+            console.log('Original size:', originalSize);
+            
+            // Calculate new file size with current settings
+            const { finalData } = this.prepareExportData();
+            console.log('Final data prepared:', !!finalData);
+            
+            const newJson = this.settings.prettifyJson 
+                ? JSON.stringify(finalData, null, 2)
+                : JSON.stringify(finalData);
+            const newSize = new Blob([newJson]).size;
+            console.log('New size:', newSize);
+            
+            // Calculate savings
+            const savings = originalSize - newSize;
+            const savingsPercent = ((savings / originalSize) * 100).toFixed(1);
+            console.log('Savings:', savings, 'Percent:', savingsPercent);
+            
+            // Update UI elements
+            const originalSizeEl = document.getElementById('originalSize');
+            const newSizeEl = document.getElementById('newSize');
+            const spaceSavedEl = document.getElementById('spaceSaved');
+            const fileSizeComparisonEl = document.getElementById('fileSizeComparison');
+            
+            if (!originalSizeEl || !newSizeEl || !spaceSavedEl || !fileSizeComparisonEl) {
+                console.error('One or more file size elements not found in DOM');
+                return;
+            }
+            
+            originalSizeEl.textContent = this.formatFileSize(originalSize);
+            newSizeEl.textContent = this.formatFileSize(newSize);
+            spaceSavedEl.textContent = `${this.formatFileSize(savings)} (${savingsPercent}%)`;
+            fileSizeComparisonEl.style.display = 'block';
+            
+            console.log('File size preview updated successfully');
+        } catch (error) {
+            console.error('Error in updateFileSizePreview:', error);
+            document.getElementById('fileSizeComparison').style.display = 'none';
+        }
     }
 
     formatFileSize(bytes) {
@@ -2653,7 +2697,6 @@ class EmojiDataPasta {
             return;
         }
 
-        const emoji = this.originalData[this.currentEmojiIndex];
         this.showConfirmModal(
             'Clear Custom Terms',
             `Clear ${currentTerms.length} custom search term${currentTerms.length === 1 ? '' : 's'} for "${emoji.name || 'Unknown Emoji'}"?`,
