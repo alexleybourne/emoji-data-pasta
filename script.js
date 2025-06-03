@@ -1,43 +1,48 @@
 // Emoji Data Pasta - Bulk Field Manager
 class EmojiDataPasta {
     constructor() {
+        // Initialize all data structures
         this.originalData = [];
         this.fieldSchema = {};
         this.selectedFields = new Set();
         this.filteredEmojis = [];
-        this.removedEmojis = new Set(); // Track removed emoji indices
+        this.removedEmojis = new Set();
         this.currentEmojiIndex = 0;
         this.currentVariant = 'default';
         this.expandedFields = new Set();
-        this.fieldDescriptions = this.getFieldDescriptions();
-        this.presets = this.getFieldPresets();
+        this.categoryMappings = new Map();
+        this.excludedCategories = new Set();
+        this.originalCategories = new Map();
+        this.selectedCategories = new Set();
+        this.customSearchTerms = new Map();
         this.currentPreset = '';
-        this.customPreset = this.loadCustomPreset();
-        this.categoryMappings = new Map(); // Map of new category names to arrays of original categories
-        this.excludedCategories = new Set(); // Set of categories to exclude completely
-        this.originalCategories = new Map(); // Map of original category names to emoji counts
-        this.selectedCategories = new Set(); // Track selected categories for multi-select operations
-        this.customSearchTerms = new Map(); // Map of emoji indices to arrays of custom search terms
+        this.customPreset = [];
+        
+        // Initialize presets
+        this.presets = this.getFieldPresets();
+        
+        // Initialize field descriptions
+        this.fieldDescriptions = this.getFieldDescriptions();
+        
+        // Settings
         this.settings = {
             includeEmptyFields: true,
             prettifyJson: true,
             includeStats: true,
             saveSettings: true,
-            filename: 'emoji-edited.json',
-            arrayName: ''
+            filename: 'emoji-edited.json'
         };
-        this.emojiDisplayLimit = 100; // Initial display limit
-        this.emojiDisplayIncrement = 50; // How many to add each time
         
-        // Theme management (dark mode by default)
+        // Theme
         this.theme = localStorage.getItem('emoji-pasta-theme') || 'dark';
-        this.applyTheme();
         
+        // Initialize event listeners and load data
         this.initializeEventListeners();
+        this.initializeTooltips();
         
-        // Load persisted state first, then default data
-        this.loadPersistedState();
         this.loadDefaultData();
+        this.loadPersistedState();
+        this.applyTheme();
     }
 
     getFieldDescriptions() {
@@ -140,31 +145,23 @@ class EmojiDataPasta {
         document.getElementById('cancelExport').addEventListener('click', () => this.hideSettingsPanel());
         document.getElementById('saveSettings').addEventListener('change', (e) => {
             this.settings.saveSettings = e.target.checked;
-            this.saveState();
+            this.updateFileSizePreview();
         });
         document.getElementById('includeEmptyFields').addEventListener('change', (e) => {
             this.settings.includeEmptyFields = e.target.checked;
             this.updateFileSizePreview();
-            this.saveState();
         });
         document.getElementById('prettifyJson').addEventListener('change', (e) => {
             this.settings.prettifyJson = e.target.checked;
             this.updateFileSizePreview();
-            this.saveState();
         });
         document.getElementById('includeStats').addEventListener('change', (e) => {
             this.settings.includeStats = e.target.checked;
             this.updateFileSizePreview();
-            this.saveState();
         });
-        document.getElementById('customFilename').addEventListener('input', (e) => {
+        document.getElementById('filename').addEventListener('input', (e) => {
             this.settings.filename = e.target.value;
-            this.saveState();
-        });
-        document.getElementById('arrayName').addEventListener('input', (e) => {
-            this.settings.arrayName = e.target.value;
             this.updateFileSizePreview();
-            this.saveState();
         });
 
         // Keyboard shortcuts
@@ -206,6 +203,16 @@ class EmojiDataPasta {
         document.getElementById('analyzeTerms').addEventListener('click', () => this.analyzeInputTerms());
         document.getElementById('executeBulkAddTerms').addEventListener('click', () => this.executeBulkAddTerms());
         document.getElementById('bulkTermsInput').addEventListener('input', () => this.updateInputTermsStats());
+
+        // Changes summary modal
+        document.getElementById('closeChangesSummary').addEventListener('click', () => this.hideChangesSummaryModal());
+        document.getElementById('confirmChanges').addEventListener('click', () => this.hideChangesSummaryModal());
+        
+        // Reset confirmation modal  
+        document.getElementById('closeResetConfirm').addEventListener('click', () => this.hideResetConfirmModal());
+        document.getElementById('cancelReset').addEventListener('click', () => this.hideResetConfirmModal());
+        document.getElementById('saveFirst').addEventListener('click', () => this.saveBeforeReset());
+        document.getElementById('confirmReset').addEventListener('click', () => this.executeReset());
     }
 
     initializeTooltips() {
@@ -234,22 +241,191 @@ class EmojiDataPasta {
 
     async loadDefaultData() {
         try {
+            console.log('Loading default emoji data from emoji.json...');
             const response = await fetch('emoji.json');
-            if (response.ok) {
-                const data = await response.json();
-                this.loadData(data);
-                this.showMessage('Loaded default emoji.json file', 'success');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+            
+            console.log('Fetch successful, parsing JSON...');
+            const data = await response.json();
+            
+            if (!Array.isArray(data)) {
+                throw new Error('Invalid data format: expected an array');
+            }
+            
+            console.log(`Parsed ${data.length} emojis, loading data...`);
+            await this.loadData(data);
+            
+            console.log('Default emoji data loaded successfully');
+            this.showMessage('Default emoji data loaded successfully', 'success');
         } catch (error) {
-            console.log('No default emoji.json file found');
+            console.error('Failed to load default data:', error);
+            this.showMessage('Failed to load default data: ' + error.message, 'error');
+            
+            // Show helpful guidance in the display
+            this.updateDisplay(); // This will show the "Load emoji data" state
         }
+    }
+
+    async detectCustomSearchTerms() {
+        // This function compares current data with original emoji.json to detect custom search terms
+        try {
+            console.log('🔍 STARTING CUSTOM SEARCH TERMS DETECTION...');
+            console.log('🔍 Current originalData state:', {
+                length: this.originalData.length,
+                firstEmoji: this.originalData[0] ? this.originalData[0].name : 'none',
+                hasSkull: !!this.originalData.find(e => e.unified === '1F480')
+            });
+            
+            const response = await fetch('emoji.json');
+            let originalData = await response.json();
+            
+            console.log('📥 Fetched original emoji.json:', {
+                isArray: Array.isArray(originalData),
+                length: Array.isArray(originalData) ? originalData.length : 'N/A',
+                hasDataProp: !!originalData.data,
+                topLevelKeys: Array.isArray(originalData) ? 'Array' : Object.keys(originalData).slice(0, 5)
+            });
+            
+            // Handle different data structures - original emoji.json is a direct array
+            if (!Array.isArray(originalData)) {
+                if (originalData.data && Array.isArray(originalData.data)) {
+                    console.log('🔧 Original has data wrapper, extracting array');
+                    originalData = originalData.data;
+                } else {
+                    console.error('❌ Original emoji.json has unexpected structure');
+                    return;
+                }
+            }
+            
+            console.log(`📊 COMPARISON SETUP:
+  Current data: ${this.originalData.length} emojis
+  Original data: ${originalData.length} emojis`);
+            
+            // Look for skull in original data
+            const originalSkull = originalData.find(emoji => emoji.unified === '1F480');
+            console.log('💀 Original SKULL emoji:', originalSkull ? {
+                name: originalSkull.name,
+                unified: originalSkull.unified,
+                short_names: originalSkull.short_names
+            } : 'NOT FOUND');
+            
+            // Create a map of original emoji data keyed by unified code for quick lookup
+            const originalEmojiMap = new Map();
+            originalData.forEach(emoji => {
+                if (emoji.unified) {
+                    originalEmojiMap.set(emoji.unified, emoji);
+                }
+            });
+            
+            console.log(`🗂️ Created lookup map with ${originalEmojiMap.size} original emojis`);
+            
+            // Compare current data with original to find custom search terms
+            this.customSearchTerms.clear();
+            let totalCustomTerms = 0;
+            let comparedCount = 0;
+            let foundSkull = false;
+            
+            this.originalData.forEach((currentEmoji, index) => {
+                if (!currentEmoji.unified) {
+                    console.log(`⚠️ Emoji at index ${index} has no unified code:`, currentEmoji.name);
+                    return;
+                }
+                
+                const originalEmoji = originalEmojiMap.get(currentEmoji.unified);
+                if (!originalEmoji) {
+                    console.log(`⚠️ No original emoji found for unified code: ${currentEmoji.unified} (${currentEmoji.name})`);
+                    return;
+                }
+                
+                comparedCount++;
+                
+                // Compare short_names arrays to find additions
+                const originalTerms = new Set(originalEmoji.short_names || []);
+                const currentTerms = currentEmoji.short_names || [];
+                
+                // Check for skull specifically
+                if (currentEmoji.unified === '1F480') {
+                    foundSkull = true;
+                    console.log(`💀 SKULL COMPARISON DETAILED:
+  Current emoji: ${currentEmoji.name}
+  Current short_names: [${currentTerms.join(', ')}] (length: ${currentTerms.length})
+  Original short_names: [${Array.from(originalTerms).join(', ')}] (length: ${originalTerms.size})
+  Differences: [${currentTerms.filter(term => !originalTerms.has(term)).join(', ')}]`);
+                }
+                
+                // Debug first few comparisons and any with differences
+                const differences = currentTerms.filter(term => !originalTerms.has(term));
+                if (currentEmoji.unified === '1F480' || currentEmoji.unified === '1FAA6' || comparedCount <= 3 || differences.length > 0) {
+                    console.log(`🔍 Comparison ${comparedCount} - ${currentEmoji.name} (${currentEmoji.unified}):`, {
+                        originalTerms: Array.from(originalTerms),
+                        currentTerms: currentTerms,
+                        originalLength: originalTerms.size,
+                        currentLength: currentTerms.length,
+                        differences: differences,
+                        hasDifferences: differences.length > 0
+                    });
+                }
+                
+                const customTerms = currentTerms.filter(term => !originalTerms.has(term));
+                
+                if (customTerms.length > 0) {
+                    this.customSearchTerms.set(index, customTerms);
+                    totalCustomTerms += customTerms.length;
+                    
+                    // Try to get emoji character for logging
+                    let emojiChar = '📝';
+                    try {
+                        const codePoints = currentEmoji.unified.split('-').map(hex => parseInt(hex, 16));
+                        emojiChar = String.fromCodePoint(...codePoints);
+                    } catch (e) {
+                        // fallback already set
+                    }
+                    
+                    console.log(`🏷️ FOUND CUSTOM TERMS: ${customTerms.length} for ${emojiChar} (${currentEmoji.name}): [${customTerms.join(', ')}]`);
+                }
+            });
+            
+            console.log(`📋 DETECTION SUMMARY:
+  Total emojis compared: ${comparedCount}
+  Found skull during comparison: ${foundSkull}
+  Custom search terms found: ${this.customSearchTerms.size}
+  Total custom terms: ${totalCustomTerms}`);
+            
+            if (this.customSearchTerms.size > 0) {
+                console.log(`✅ Detection complete: ${this.customSearchTerms.size} emojis with ${totalCustomTerms} total custom search terms`);
+                console.log('🏷️ All custom terms:', Array.from(this.customSearchTerms.entries()));
+            } else {
+                console.log('ℹ️ No custom search terms detected');
+            }
+            
+        } catch (error) {
+            console.error('❌ Failed to detect custom search terms:', error);
+        }
+    }
+
+    // Debug method to test custom search terms detection
+    debugCustomTermsDetection() {
+        console.log('🧪 DEBUG: Current custom search terms state:');
+        console.log('customSearchTerms.size:', this.customSearchTerms.size);
+        console.log('customSearchTerms entries:', Array.from(this.customSearchTerms.entries()));
+        
+        // Show a few examples of current emoji data
+        console.log('🧪 DEBUG: First 3 emojis in current data:');
+        this.originalData.slice(0, 3).forEach((emoji, index) => {
+            console.log(`  ${index}: ${emoji.name} - short_names:`, emoji.short_names);
+        });
+        
+        return this.customSearchTerms;
     }
 
     loadFile() {
         document.getElementById('fileInput').click();
     }
 
-    handleFileLoad(event) {
+    async handleFileLoad(event) {
         const file = event.target.files[0];
         if (!file) return;
 
@@ -258,47 +434,304 @@ class EmojiDataPasta {
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-                this.loadData(data);
-                this.showMessage(`Loaded ${Array.isArray(data) ? data.length : 'N/A'} entries from ${file.name}`, 'success');
-            } catch (error) {
-                this.showMessage('Error parsing JSON file. Please check the file format.', 'error');
+        console.log('🚀 STARTING FILE LOAD PROCESS for:', file.name);
+
+        // Show loading modal
+        this.showLoadingModal('Loading file...');
+
+        try {
+            // Read the uploaded file
+            console.log('📖 Reading file content...');
+            const fileContent = await this.readFileAsync(file);
+            console.log('📝 File content length:', fileContent.length);
+            
+            const uploadedData = JSON.parse(fileContent);
+            console.log('📊 Parsed JSON structure:', {
+                isArray: Array.isArray(uploadedData),
+                hasDataProperty: !!uploadedData.data,
+                hasSettings: !!uploadedData.emoji_data_pasta_settings,
+                topLevelKeys: Object.keys(uploadedData),
+                dataLength: uploadedData.data ? uploadedData.data.length : 'N/A'
+            });
+
+            // Check if this is a settings file (has emoji_data_pasta_settings)
+            if (uploadedData.emoji_data_pasta_settings) {
+                console.log('🔧 Detected settings file, using settings flow');
+                await this.loadSettingsFromFile(uploadedData, file.name);
+            } else if (Array.isArray(uploadedData)) {
+                console.log('📋 Detected direct array, loading as emoji data');
+                // Legacy: direct emoji array - load data and detect custom search terms
+                this.showLoadingModal('Loading emoji data...');
+                await this.loadData(uploadedData);
+                
+                this.showLoadingModal('Detecting custom search terms...');
+                await this.detectCustomSearchTerms();
+                
+                const customTermsCount = this.customSearchTerms.size;
+                let message = `Loaded ${uploadedData.length} emojis from ${file.name}`;
+                if (customTermsCount > 0) {
+                    message += `\n🏷️ Detected ${customTermsCount} emojis with custom search terms`;
+                }
+                
+                this.showMessage(message, 'success');
+            } else if (uploadedData.data && Array.isArray(uploadedData.data)) {
+                console.log('📦 Detected data wrapper object, extracting array');
+                // Object with data property containing array
+                this.showLoadingModal('Loading emoji data...');
+                await this.loadData(uploadedData.data);
+                
+                this.showLoadingModal('Detecting custom search terms...');
+                await this.detectCustomSearchTerms();
+                
+                const customTermsCount = this.customSearchTerms.size;
+                let message = `Loaded ${uploadedData.data.length} emojis from ${file.name}`;
+                if (customTermsCount > 0) {
+                    message += `\n🏷️ Detected ${customTermsCount} emojis with custom search terms`;
+                }
+                
+                this.showMessage(message, 'success');
+            } else {
+                this.showMessage('Invalid file format. Expected emoji data or settings file.', 'error');
             }
-        };
-        reader.readAsText(file);
+        } catch (error) {
+            console.error('❌ Error in handleFileLoad:', error);
+            this.showMessage('Error parsing JSON file: ' + error.message, 'error');
+        } finally {
+            this.hideLoadingModal();
+        }
     }
 
-    loadData(data) {
+    readFileAsync(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsText(file);
+        });
+    }
+
+    async loadSettingsFromFile(settingsFile, filename) {
+        try {
+            this.showLoadingModal('Loading base emoji data...');
+            
+            // Always load the current base emoji.json as foundation
+            const response = await fetch('emoji.json');
+            const baseEmojiData = await response.json();
+            
+            this.showLoadingModal('Applying your customizations...');
+            
+            // Extract settings
+            const settings = settingsFile.emoji_data_pasta_settings;
+            
+            // Store the uploaded data for comparison if it exists
+            this.uploadedEmojiData = settingsFile.data || null;
+            
+            // Load base data first
+            await this.loadData(baseEmojiData);
+            
+            // Apply the saved settings and custom data changes
+            await this.applySettingsFromFile(settings);
+            
+            // Show overview of what was applied
+            // this.showSettingsOverview(settings, filename); // Using changes summary modal instead
+            
+        } catch (error) {
+            this.showMessage('Error loading settings: ' + error.message, 'error');
+        }
+    }
+
+    async applySettingsFromFile(settings) {
+        // Track changes for summary
+        this.appliedChanges = {
+            fieldsRemoved: 0,
+            emojisRemoved: 0,
+            categoryMappings: 0,
+            excludedCategories: 0,
+            customSearchTerms: 0,
+            details: []
+        };
+        
+        // Apply field selections
+        if (settings.fieldsRemoved) {
+            const allFields = new Set(Object.keys(this.fieldSchema));
+            const removedFields = new Set(settings.fieldsRemoved);
+            const keptFields = Array.from(allFields).filter(field => !removedFields.has(field));
+            
+            this.selectedFields = new Set();
+            keptFields.forEach(field => {
+                if (this.fieldSchema[field]) {
+                    this.selectedFields.add(field);
+                }
+            });
+            
+            this.appliedChanges.fieldsRemoved = settings.fieldsRemoved.length;
+            this.appliedChanges.details.push(`🔧 Removed ${settings.fieldsRemoved.length} fields`);
+        }
+
+        // Apply removed emojis by emoji characters
+        if (settings.removedEmojis && settings.removedEmojis.length > 0) {
+            const removedEmojiChars = new Set(settings.removedEmojis);
+            this.removedEmojis = new Set();
+            
+            this.originalData.forEach((emoji, index) => {
+                try {
+                    const codePoints = emoji.unified.split('-').map(hex => parseInt(hex, 16));
+                    const emojiChar = String.fromCodePoint(...codePoints);
+                    if (removedEmojiChars.has(emojiChar)) {
+                        this.removedEmojis.add(index);
+                    }
+                } catch (e) {
+                    const fallback = emoji.name || `Index_${emoji.unified || 'unknown'}`;
+                    if (removedEmojiChars.has(fallback)) {
+                        this.removedEmojis.add(index);
+                    }
+                }
+            });
+            
+            this.appliedChanges.emojisRemoved = settings.removedEmojis.length;
+            this.appliedChanges.details.push(`❌ Removed ${settings.removedEmojis.length} emojis: ${settings.removedEmojis.join(' ')}`);
+        }
+
+        // Apply category modifications
+        if (settings.categoryMappings) {
+            this.categoryMappings = new Map(settings.categoryMappings);
+            this.appliedChanges.categoryMappings = settings.categoryMappings.length;
+            this.appliedChanges.details.push(`📁 Applied ${settings.categoryMappings.length} category mappings`);
+        }
+        if (settings.excludedCategories) {
+            this.excludedCategories = new Set(settings.excludedCategories);
+            this.appliedChanges.excludedCategories = settings.excludedCategories.length;
+            this.appliedChanges.details.push(`🚫 Excluded ${settings.excludedCategories.length} categories`);
+        }
+
+        // Detect and apply custom search terms from uploaded data
+        if (this.uploadedEmojiData) {
+            console.log('🔍 Detecting custom search terms from uploaded data...');
+            await this.detectCustomSearchTermsFromData(this.uploadedEmojiData);
+        } else {
+            // Fallback to original detection method
+            await this.detectCustomSearchTerms();
+        }
+        
+        if (this.customSearchTerms.size > 0) {
+            this.appliedChanges.customSearchTerms = this.customSearchTerms.size;
+            const totalTerms = Array.from(this.customSearchTerms.values()).reduce((sum, terms) => sum + terms.length, 0);
+            this.appliedChanges.details.push(`🏷️ Found ${this.customSearchTerms.size} emojis with ${totalTerms} custom search terms`);
+        }
+        
+        // Update display
+        this.updateDisplay();
+        
+        // Show changes summary modal
+        this.showChangeSummaryModal();
+    }
+
+    showSettingsOverview(settings, filename) {
+        const fieldsRemoved = settings.fieldsRemoved ? settings.fieldsRemoved.length : 0;
+        const emojisRemoved = settings.removedEmojis ? settings.removedEmojis.length : 0;
+        const categoryMappings = settings.categoryMappings ? settings.categoryMappings.length : 0;
+        const excludedCategories = settings.excludedCategories ? settings.excludedCategories.length : 0;
+        
+        let overview = `✅ Settings loaded from "${filename}":\n\n`;
+        overview += `📋 Applied to ${this.originalData.length} emojis from current emoji.json\n\n`;
+        
+        if (fieldsRemoved > 0) {
+            overview += `🔧 ${fieldsRemoved} fields removed\n`;
+        }
+        if (emojisRemoved > 0) {
+            overview += `❌ ${emojisRemoved} emojis removed: ${settings.removedEmojis.join(' ')}\n`;
+        }
+        if (categoryMappings > 0) {
+            overview += `📁 ${categoryMappings} category mappings applied\n`;
+        }
+        if (excludedCategories > 0) {
+            overview += `🚫 ${excludedCategories} categories excluded\n`;
+        }
+        
+        const customTerms = this.customSearchTerms.size;
+        if (customTerms > 0) {
+            overview += `🏷️ ${customTerms} emojis with custom search terms detected\n`;
+        }
+        
+        overview += `\n✨ Your customizations have been applied to the current emoji dataset!`;
+        
+        this.showMessage(overview, 'success');
+    }
+
+    showLoadingModal(message = 'Loading...') {
+        // Create loading modal if it doesn't exist
+        let modal = document.getElementById('loadingModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'loadingModal';
+            modal.className = 'loading-modal';
+            modal.innerHTML = `
+                <div class="loading-content">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text" id="loadingText">Loading...</div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        document.getElementById('loadingText').textContent = message;
+        modal.classList.add('active');
+    }
+
+    hideLoadingModal() {
+        const modal = document.getElementById('loadingModal');
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    }
+
+    async loadData(data) {
+        console.log('🔄 LOADING DATA - Input type:', Array.isArray(data) ? 'Array' : typeof data);
+        console.log('🔄 LOADING DATA - Input length/keys:', Array.isArray(data) ? data.length : Object.keys(data));
+        
         // Handle both array and object with emoji_data_pasta_settings
         let hasRestorableSettings = false;
         
         if (data.emoji_data_pasta_settings) {
+            console.log('🔧 Found emoji_data_pasta_settings in data');
             const savedSettings = data.emoji_data_pasta_settings;
+            hasRestorableSettings = true;
             
-            // Restore settings if they were saved
-            if (savedSettings.fieldSelections && savedSettings.settings && savedSettings.settings.saveSettings) {
-                hasRestorableSettings = true;
-                
-                // Restore export settings
-                this.settings = { ...this.settings, ...savedSettings.settings };
-                
-                // Store the saved field selections and expanded state for later restoration
-                this.savedFieldSelections = new Set(savedSettings.fieldSelections);
-                this.savedExpandedFields = new Set(savedSettings.expandedFields || []);
-                this.savedFieldSchema = savedSettings.originalFieldSchema || {};
-            }
+            // Store the minimal settings for restoration
+            this.savedMinimalState = savedSettings;
             
             // Remove settings and extract the actual array
             delete data.emoji_data_pasta_settings;
             this.originalData = Object.values(data).filter(item => typeof item === 'object' && item.name);
+            console.log('🔧 Extracted emoji data length:', this.originalData.length);
         } else if (Array.isArray(data)) {
+            console.log('📋 Loading direct array of emojis');
             this.originalData = data;
         } else {
+            console.error('❌ Invalid data format in loadData');
             this.showMessage('Invalid data format. Expected an array of emoji objects.', 'error');
             return;
+        }
+
+        console.log('✅ LOADED DATA - originalData length:', this.originalData.length);
+        
+        // Log first few emojis to verify structure
+        console.log('🔍 First 3 emojis in loaded data:');
+        this.originalData.slice(0, 3).forEach((emoji, index) => {
+            console.log(`  ${index}: ${emoji.name} (${emoji.unified}) - short_names:`, emoji.short_names);
+        });
+        
+        // Look for skull emoji specifically
+        const skullEmoji = this.originalData.find(emoji => emoji.unified === '1F480');
+        if (skullEmoji) {
+            console.log('💀 Found SKULL emoji in loaded data:', {
+                name: skullEmoji.name,
+                unified: skullEmoji.unified,
+                short_names: skullEmoji.short_names,
+                index: this.originalData.indexOf(skullEmoji)
+            });
+        } else {
+            console.log('❌ SKULL emoji not found in loaded data');
         }
 
         this.analyzeFieldStructure();
@@ -306,39 +739,61 @@ class EmojiDataPasta {
         this.filteredEmojis = [...this.originalData];
         this.updateDisplay();
         
-        // Restore navigation state from localStorage if available and no file-specific settings
-        if (!hasRestorableSettings && this.persistedSelectedFields) {
-            this.currentEmojiIndex = Math.min(this.currentEmojiIndex, this.originalData.length - 1);
-            this.currentVariant = this.currentVariant || 'default';
-        } else {
-            this.currentEmojiIndex = 0;
-            this.currentVariant = 'default';
-        }
+        // Reset to defaults
+        this.currentEmojiIndex = 0;
+        this.currentVariant = 'default';
         
-        // Restore field selections priority: file settings > localStorage > default
-        if (hasRestorableSettings && this.savedFieldSelections) {
-            // File-specific settings take priority
+        // Restore from minimal settings if available, otherwise use localStorage or defaults
+        if (hasRestorableSettings && this.savedMinimalState) {
+            console.log('🔧 Restoring from minimal settings');
+            // Handle minimal format
+            const state = this.savedMinimalState;
+            
+            // Calculate kept fields from removed fields
+            const allFields = new Set(Object.keys(this.fieldSchema));
+            const removedFields = new Set(state.fieldsRemoved || []);
+            const keptFields = Array.from(allFields).filter(field => !removedFields.has(field));
+            
             this.selectedFields = new Set();
-            this.savedFieldSelections.forEach(field => {
+            keptFields.forEach(field => {
                 if (this.fieldSchema[field]) {
                     this.selectedFields.add(field);
                 }
             });
             
-            this.expandedFields = new Set();
-            this.savedExpandedFields.forEach(field => {
-                if (this.fieldSchema[field]) {
-                    this.expandedFields.add(field);
-                }
-            });
-            
-            // Restore removed emojis from file settings if available
-            if (this.savedFieldSchema.removedEmojis) {
-                this.removedEmojis = new Set(this.savedFieldSchema.removedEmojis.filter(index => index < this.originalData.length));
+            // Restore removed emojis using emoji characters
+            if (state.removedEmojis && state.removedEmojis.length > 0) {
+                const removedEmojiChars = new Set(state.removedEmojis);
+                this.removedEmojis = new Set();
+                
+                this.originalData.forEach((emoji, index) => {
+                    try {
+                        const codePoints = emoji.unified.split('-').map(hex => parseInt(hex, 16));
+                        const emojiChar = String.fromCodePoint(...codePoints);
+                        if (removedEmojiChars.has(emojiChar)) {
+                            this.removedEmojis.add(index);
+                        }
+                    } catch (e) {
+                        const fallback = emoji.name || `Index_${emoji.unified || 'unknown'}`;
+                        if (removedEmojiChars.has(fallback)) {
+                            this.removedEmojis.add(index);
+                        }
+                    }
+                });
             }
             
-            this.showMessage(`Loaded data with restored file settings: ${this.selectedFields.size} fields selected`, 'info');
+            // Restore category modifications
+            if (state.categoryMappings) {
+                this.categoryMappings = new Map(state.categoryMappings);
+            }
+            if (state.excludedCategories) {
+                this.excludedCategories = new Set(state.excludedCategories);
+            }
+            
+            this.showMessage(`Loaded data with file settings: ${this.selectedFields.size} fields selected`, 'info');
+            
         } else if (this.persistedSelectedFields && this.persistedSelectedFields.length > 0) {
+            console.log('💾 Restoring from localStorage');
             // Use localStorage state if available
             this.selectedFields = new Set();
             this.persistedSelectedFields.forEach(field => {
@@ -361,6 +816,7 @@ class EmojiDataPasta {
             
             this.showMessage(`Loaded data with restored session state: ${this.selectedFields.size} fields selected`, 'info');
         } else {
+            console.log('🆕 Using default field selection');
             // Default: select all fields for new data
             this.selectedFields = new Set(Object.keys(this.fieldSchema));
         }
@@ -371,6 +827,11 @@ class EmojiDataPasta {
         
         this.updateDisplay();
         this.saveState(); // Save state after loading data
+        
+        // Clean up temporary state
+        this.savedMinimalState = null;
+        
+        console.log('🏁 LOADDATA COMPLETE - calling detectCustomSearchTerms will happen next');
     }
 
     analyzeFieldStructure() {
@@ -493,6 +954,15 @@ class EmojiDataPasta {
 
         const currentEmoji = this.originalData[this.currentEmojiIndex];
         
+        // Add safety check for undefined currentEmoji
+        if (!currentEmoji) {
+            emojiIcon.textContent = '❌';
+            emojiName.textContent = 'Emoji data undefined';
+            emojiIndex.textContent = `${this.currentEmojiIndex + 1} / ${this.originalData.length}`;
+            variantInfo.style.display = 'none';
+            return;
+        }
+        
         // Check if this emoji has variants
         const availableVariants = this.getAvailableVariants(currentEmoji);
         
@@ -534,7 +1004,7 @@ class EmojiDataPasta {
         
         // Try to show the actual emoji character
         let emojiChar = '📝'; // fallback
-        if (variantData.unified) {
+        if (variantData && variantData.unified) {
             try {
                 // Convert unified format to emoji character
                 const codePoints = variantData.unified.split('-').map(hex => parseInt(hex, 16));
@@ -550,6 +1020,11 @@ class EmojiDataPasta {
     }
 
     getCurrentVariantData(emoji) {
+        // Add safety check for undefined emoji
+        if (!emoji) {
+            return null;
+        }
+        
         if (this.currentVariant === 'default') {
             return emoji;
         }
@@ -565,6 +1040,11 @@ class EmojiDataPasta {
     }
 
     getAvailableVariants(emoji) {
+        // Add safety check for undefined emoji
+        if (!emoji) {
+            return ['default'];
+        }
+        
         const variants = ['default'];
         if (emoji.skin_variations) {
             variants.push(...Object.keys(emoji.skin_variations));
@@ -642,6 +1122,13 @@ class EmojiDataPasta {
 
         // Show the current selected emoji with current variant
         const currentEmoji = this.originalData[this.currentEmojiIndex];
+        
+        // Add safety check for undefined currentEmoji
+        if (!currentEmoji) {
+            container.innerHTML = '<div class="loading">Invalid emoji index - please navigate to a valid emoji</div>';
+            return;
+        }
+        
         const variantData = this.getCurrentVariantData(currentEmoji);
         const jsonString = JSON.stringify(variantData, null, 2);
         const highlightedJson = this.highlightJsonWithRemovedFields(jsonString, variantData);
@@ -705,6 +1192,12 @@ class EmojiDataPasta {
 
     getAllFieldsFromObject(obj, prefix) {
         let fields = [];
+        
+        // Add safety check for undefined/null obj
+        if (!obj || typeof obj !== 'object') {
+            return fields;
+        }
+        
         Object.keys(obj).forEach(key => {
             const fullKey = prefix ? `${prefix}.${key}` : key;
             fields.push(fullKey);
@@ -834,6 +1327,13 @@ class EmojiDataPasta {
 
         // Create a sample output based on selected fields from current emoji
         const currentEmoji = this.originalData[this.currentEmojiIndex];
+        
+        // Add safety check for undefined currentEmoji
+        if (!currentEmoji) {
+            container.innerHTML = '<div class="loading">Invalid emoji index - please navigate to a valid emoji</div>';
+            return;
+        }
+        
         const variantData = this.getCurrentVariantData(currentEmoji);
         const sampleOutput = this.createFilteredEmoji(variantData);
         const jsonString = JSON.stringify(sampleOutput, null, 2);
@@ -1261,8 +1761,7 @@ class EmojiDataPasta {
         document.getElementById('includeEmptyFields').checked = this.settings.includeEmptyFields;
         document.getElementById('prettifyJson').checked = this.settings.prettifyJson;
         document.getElementById('includeStats').checked = this.settings.includeStats;
-        document.getElementById('customFilename').value = this.settings.filename;
-        document.getElementById('arrayName').value = this.settings.arrayName;
+        document.getElementById('filename').value = this.settings.filename;
         
         // Calculate and show file size comparison
         this.updateFileSizePreview();
@@ -1360,49 +1859,49 @@ class EmojiDataPasta {
             }
         });
 
-        // Prepare final data structure
-        let finalData;
+        // Always return as simple array, no object wrapping option
+        let finalData = processedData;
 
-        if (this.settings.arrayName && this.settings.arrayName.trim()) {
-            finalData = {
-                [this.settings.arrayName.trim()]: processedData
+        // Add minimal settings if enabled
+        if (this.settings.saveSettings) {
+            // Helper function to convert emoji to character
+            const getEmojiChar = (emoji) => {
+                try {
+                    const codePoints = emoji.unified.split('-').map(hex => parseInt(hex, 16));
+                    return String.fromCodePoint(...codePoints);
+                } catch (e) {
+                    return emoji.name || `Index_${emoji.unified || 'unknown'}`;
+                }
             };
-        } else {
-            finalData = processedData;
-        }
-
-        // Add statistics if enabled
-        if (this.settings.includeStats || this.settings.saveSettings) {
-            const stats = {
-                originalDataCount: this.originalData.length,
-                finalDataCount: processedData.length,
-                removedEmojiCount: this.removedEmojis.size,
-                removedEmojiIndices: Array.from(this.removedEmojis),
-                fieldsOriginal: Object.keys(this.fieldSchema).length,
-                fieldsSelected: this.selectedFields.size,
-                fieldsRemoved: Object.keys(this.fieldSchema).filter(f => !this.selectedFields.has(f)),
-                fieldsKept: Array.from(this.selectedFields),
-                customSearchTermsCount: this.customSearchTerms.size,
-                totalCustomTerms: Array.from(this.customSearchTerms.values()).reduce((sum, terms) => sum + terms.length, 0),
-                processedAt: new Date().toISOString(),
-                settings: { ...this.settings }
-            };
-
-            // Add settings preservation data if enabled
-            if (this.settings.saveSettings) {
-                stats.fieldSelections = Array.from(this.selectedFields);
-                stats.expandedFields = Array.from(this.expandedFields);
-                stats.originalFieldSchema = this.fieldSchema;
-                stats.removedEmojis = Array.from(this.removedEmojis);
-                stats.customSearchTerms = Array.from(this.customSearchTerms.entries());
+            
+            // Minimal settings - only what's needed for restoration
+            const minimalSettings = {};
+            
+            // Only include data if it exists/differs from defaults
+            const removedFields = Object.keys(this.fieldSchema).filter(f => !this.selectedFields.has(f));
+            if (removedFields.length > 0) {
+                minimalSettings.fieldsRemoved = removedFields;
+            }
+            
+            if (this.removedEmojis.size > 0) {
+                minimalSettings.removedEmojis = Array.from(this.removedEmojis)
+                    .map(index => getEmojiChar(this.originalData[index]))
+                    .filter(emoji => emoji);
+            }
+            
+            if (this.categoryMappings.size > 0) {
+                minimalSettings.categoryMappings = Array.from(this.categoryMappings.entries());
+            }
+            
+            if (this.excludedCategories.size > 0) {
+                minimalSettings.excludedCategories = Array.from(this.excludedCategories);
             }
 
-            if (this.settings.arrayName && this.settings.arrayName.trim()) {
-                finalData.emoji_data_pasta_settings = stats;
-            } else {
+            // Only add settings if there's actually something to save
+            if (Object.keys(minimalSettings).length > 0) {
                 finalData = {
                     data: processedData,
-                    emoji_data_pasta_settings: stats
+                    emoji_data_pasta_settings: minimalSettings
                 };
             }
         }
@@ -1775,51 +2274,76 @@ class EmojiDataPasta {
     }
 
     resetApp() {
-        if (confirm('Are you sure you want to reset all data and clear saved state? This action cannot be undone.')) {
-            // Clear all localStorage
-            localStorage.removeItem('emoji-pasta-state');
-            localStorage.removeItem('emoji-pasta-custom-preset');
-            localStorage.removeItem('emoji-pasta-theme');
-            
-            // Reset all application state
-            this.originalData = [];
-            this.fieldSchema = {};
-            this.selectedFields = new Set();
-            this.filteredEmojis = [];
-            this.removedEmojis = new Set();
-            this.currentEmojiIndex = 0;
-            this.currentVariant = 'default';
-            this.expandedFields = new Set();
-            this.categoryMappings = new Map();
-            this.excludedCategories = new Set();
-            this.originalCategories = new Map();
-            this.selectedCategories = new Set();
-            this.customSearchTerms = new Map();
-            this.currentPreset = '';
-            this.customPreset = [];
-            
-            // Reset settings to defaults
-            this.settings = {
-                includeEmptyFields: true,
-                prettifyJson: true,
-                includeStats: true,
-                saveSettings: true,
-                filename: 'emoji-edited.json',
-                arrayName: ''
-            };
-            
-            // Reset theme to default (dark)
-            this.theme = 'dark';
-            this.applyTheme();
-            
-            // Reset UI
-            this.updateDisplay();
-            
-            // Reset preset dropdown
-            document.getElementById('fieldPresets').value = '';
-            
-            this.showMessage('Application reset successfully - all data and settings cleared', 'success');
-        }
+        // Show confirmation modal instead of direct reset
+        this.showResetConfirmModal();
+    }
+
+    showResetConfirmModal() {
+        document.getElementById('resetConfirmModal').classList.add('active');
+    }
+
+    hideResetConfirmModal() {
+        document.getElementById('resetConfirmModal').classList.remove('active');
+    }
+
+    saveBeforeReset() {
+        // Hide reset modal and show settings panel for saving
+        this.hideResetConfirmModal();
+        this.showSettingsPanel();
+        
+        // Show message about saving before reset
+        this.showMessage('Save your data, then use the reset button again to continue with reset', 'info');
+    }
+
+    executeReset() {
+        // Hide the modal
+        this.hideResetConfirmModal();
+        
+        // Clear all localStorage
+        localStorage.removeItem('emoji-pasta-state');
+        localStorage.removeItem('emoji-pasta-custom-preset');
+        localStorage.removeItem('emoji-pasta-theme');
+        
+        // Reset all application state
+        this.originalData = [];
+        this.fieldSchema = {};
+        this.selectedFields = new Set();
+        this.filteredEmojis = [];
+        this.removedEmojis = new Set();
+        this.currentEmojiIndex = 0;
+        this.currentVariant = 'default';
+        this.expandedFields = new Set();
+        this.categoryMappings = new Map();
+        this.excludedCategories = new Set();
+        this.originalCategories = new Map();
+        this.selectedCategories = new Set();
+        this.customSearchTerms = new Map();
+        this.currentPreset = '';
+        this.customPreset = [];
+        
+        // Reset settings to defaults
+        this.settings = {
+            includeEmptyFields: true,
+            prettifyJson: true,
+            includeStats: true,
+            saveSettings: true,
+            filename: 'emoji-edited.json'
+        };
+        
+        // Reset theme to default (dark)
+        this.theme = 'dark';
+        this.applyTheme();
+        
+        // Reset UI
+        this.updateDisplay();
+        
+        // Reset preset dropdown
+        document.getElementById('fieldPresets').value = '';
+        
+        // Reload default data after reset
+        this.loadDefaultData();
+        
+        this.showMessage('Application reset successfully - reloading default emoji data', 'success');
     }
 
     refreshBrowserIfOpen() {
@@ -3463,6 +3987,107 @@ class EmojiDataPasta {
         // Update the search terms view to highlight current emoji
         this.renderSearchTermsManager();
     }
+
+    async detectCustomSearchTermsFromData(uploadedData) {
+        try {
+            console.log('🔍 Comparing uploaded data with base data for custom search terms...');
+            
+            // Create a map of uploaded emoji data keyed by unified code
+            const uploadedEmojiMap = new Map();
+            uploadedData.forEach(emoji => {
+                if (emoji.unified) {
+                    uploadedEmojiMap.set(emoji.unified, emoji);
+                }
+            });
+            
+            console.log(`📊 Uploaded data map created with ${uploadedEmojiMap.size} emojis`);
+            
+            // Clear existing custom search terms
+            this.customSearchTerms.clear();
+            let totalCustomTerms = 0;
+            
+            // Compare base data with uploaded data
+            this.originalData.forEach((baseEmoji, index) => {
+                if (!baseEmoji.unified) return;
+                
+                const uploadedEmoji = uploadedEmojiMap.get(baseEmoji.unified);
+                if (!uploadedEmoji) return;
+                
+                // Compare short_names arrays
+                const baseTerms = new Set(baseEmoji.short_names || []);
+                const uploadedTerms = uploadedEmoji.short_names || [];
+                
+                const customTerms = uploadedTerms.filter(term => !baseTerms.has(term));
+                
+                if (customTerms.length > 0) {
+                    this.customSearchTerms.set(index, customTerms);
+                    totalCustomTerms += customTerms.length;
+                    
+                    // Get emoji character for logging
+                    let emojiChar = '📝';
+                    try {
+                        const codePoints = baseEmoji.unified.split('-').map(hex => parseInt(hex, 16));
+                        emojiChar = String.fromCodePoint(...codePoints);
+                    } catch (e) {
+                        // fallback already set
+                    }
+                    
+                    console.log(`🏷️ Found ${customTerms.length} custom terms for ${emojiChar} (${baseEmoji.name}): [${customTerms.join(', ')}]`);
+                }
+            });
+            
+            console.log(`✅ Custom search terms detection complete: ${this.customSearchTerms.size} emojis with ${totalCustomTerms} total custom terms`);
+            
+        } catch (error) {
+            console.error('❌ Failed to detect custom search terms from uploaded data:', error);
+        }
+    }
+
+    showChangeSummaryModal() {
+        if (!this.appliedChanges) return;
+        
+        const changes = this.appliedChanges;
+        const statsContainer = document.getElementById('changesStats');
+        const detailsContainer = document.getElementById('changesDetails');
+        
+        // Build stats cards
+        const stats = [
+            { number: this.originalData.length, label: 'Base Emojis Loaded' },
+            { number: changes.fieldsRemoved, label: 'Fields Removed' },
+            { number: changes.emojisRemoved, label: 'Emojis Removed' },
+            { number: changes.customSearchTerms, label: 'Custom Terms Applied' }
+        ];
+        
+        statsContainer.innerHTML = stats.map(stat => `
+            <div class="stat-card">
+                <span class="stat-number">${stat.number}</span>
+                <span class="stat-label">${stat.label}</span>
+            </div>
+        `).join('');
+        
+        // Build details list
+        if (changes.details.length > 0) {
+            detailsContainer.innerHTML = `
+                <h4>Applied Changes:</h4>
+                <ul>
+                    ${changes.details.map(detail => `<li>${detail}</li>`).join('')}
+                </ul>
+            `;
+        } else {
+            detailsContainer.innerHTML = '<p>No changes were applied from the loaded file.</p>';
+        }
+        
+        // Show modal
+        document.getElementById('changesSummaryModal').classList.add('active');
+    }
+
+    hideChangesSummaryModal() {
+        document.getElementById('changesSummaryModal').classList.remove('active');
+        
+        // Clean up applied changes data
+        delete this.appliedChanges;
+        delete this.uploadedEmojiData;
+    }
 }
 
 // Add animations
@@ -3479,15 +4104,35 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Initialize the application
-const emojiPasta = new EmojiDataPasta();
-// Make it globally accessible for onclick handlers
-window.app = emojiPasta;
+// Initialize the application when DOM is ready
+let emojiPasta;
 
-// Force render JSON views when DOM is ready and if there's data
+function initializeApp() {
+    console.log('Initializing Emoji Data Pasta application...');
+    emojiPasta = new EmojiDataPasta();
+    // Make it globally accessible for onclick handlers
+    window.app = emojiPasta;
+    
+    // Make debug functions available in console
+    window.debugCustomTerms = () => emojiPasta.debugCustomTermsDetection();
+    window.redetectCustomTerms = () => emojiPasta.detectCustomSearchTerms();
+    
+    console.log('Application initialized successfully');
+    console.log('🛠️ Debug functions available: debugCustomTerms(), redetectCustomTerms()');
+}
+
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    // DOM is already ready
+    initializeApp();
+}
+
+// Force render JSON views when DOM is ready and if there's data (legacy fallback)
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        if (emojiPasta.originalData.length > 0) {
+        if (emojiPasta && emojiPasta.originalData.length > 0) {
             emojiPasta.renderOriginalStructure();
             emojiPasta.renderOutputPreview();
         }

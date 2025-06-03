@@ -455,19 +455,10 @@ word1, word2, word3" rows="6"></textarea>
                 </div>
 
                 <div class="setting-group">
-                    <label for="customFilename"><strong>Output Filename:</strong></label>
-                    <input type="text" id="customFilename" value="emoji-edited.json">
+                    <label for="filename"><strong>Output Filename:</strong></label>
+                    <input type="text" id="filename" value="emoji-edited.json">
                     <div class="setting-description">
                         The name of the downloaded file. Include .json extension for proper file type recognition.
-                    </div>
-                </div>
-
-                <div class="setting-group">
-                    <label for="arrayName"><strong>Wrap in Object Named:</strong></label>
-                    <input type="text" id="arrayName" placeholder="Leave empty for root array">
-                    <div class="setting-description">
-                        Optionally wrap the emoji array in an object with this name. 
-                        Leave empty to export as a direct array. Useful for API compatibility.
                     </div>
                 </div>
 
@@ -531,6 +522,79 @@ word1, word2, word3" rows="6"></textarea>
                         <button class="btn btn-secondary" onclick="emojiPasta.hideConfirmModal()">Cancel</button>
                         <button class="btn btn-danger" id="confirmButton" onclick="emojiPasta.confirmAction()">Confirm</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Modal -->
+        <div id="loadingModal" class="loading-modal">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" id="loadingText">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Changes Summary Modal -->
+        <div id="changesSummaryModal" class="changes-summary-modal">
+            <div class="modal-content changes-summary-content">
+                <div class="modal-header">
+                    <h3>📋 Changes Applied</h3>
+                    <button class="close-btn" id="closeChangesSummary">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="changes-summary">
+                        <div class="changes-intro">
+                            <p>Successfully applied your customizations to the current emoji dataset:</p>
+                        </div>
+                        <div class="changes-stats" id="changesStats">
+                            <!-- Stats will be populated dynamically -->
+                        </div>
+                        <div class="changes-details" id="changesDetails">
+                            <!-- Details will be populated dynamically -->
+                        </div>
+                        <div class="changes-footer">
+                            <p><strong>✨ Your customizations have been applied to the latest emoji data!</strong></p>
+                            <p>Any new emojis from the base dataset are preserved, and your custom changes are layered on top.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" id="confirmChanges">Got it!</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reset Confirmation Modal -->
+        <div id="resetConfirmModal" class="reset-confirm-modal">
+            <div class="modal-content reset-confirm-content">
+                <div class="modal-header">
+                    <h3>⚠️ Reset Application</h3>
+                    <button class="close-btn" id="closeResetConfirm">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="reset-warning">
+                        <div class="warning-icon">🔄</div>
+                        <div class="warning-text">
+                            <p><strong>This will reset the tool to use the default emoji data.</strong></p>
+                            <p>All your current customizations will be lost, including:</p>
+                            <ul>
+                                <li>🔧 Field selections and presets</li>
+                                <li>❌ Removed emojis</li>
+                                <li>📁 Category mappings</li>
+                                <li>🏷️ Custom search terms</li>
+                                <li>⚙️ All settings and preferences</li>
+                            </ul>
+                            <div class="save-recommendation">
+                                <p><strong>💡 We recommend saving your edited data first!</strong></p>
+                                <p>Use the "Save Edited Data" button to download your current work before resetting.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelReset">Cancel</button>
+                    <button class="btn btn-warning" id="saveFirst">Save First, Then Reset</button>
+                    <button class="btn btn-danger" id="confirmReset">I'm Sure - Reset Now</button>
                 </div>
             </div>
         </div>
