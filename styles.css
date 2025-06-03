@@ -105,6 +105,22 @@ body {
     gap: 0.75rem;
 }
 
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logo {
+    width: 40px;
+    height: 40px;
+    transition: transform 0.2s ease;
+}
+
+.logo:hover {
+    transform: scale(1.5) rotate(360deg);
+}
+
 .attribution {
     font-size: 0.7rem;
     color: var(--text-secondary);
@@ -3761,6 +3777,7 @@ select:focus {
 
 .modal-body {
     padding: 1.5rem;
+    overflow-y: auto;
 }
 
 .modal-footer {
