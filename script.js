@@ -36,7 +36,8 @@ class EmojiDataPasta {
         // Data transform settings - initialize before loading persisted state
         this.dataTransforms = {
             nameMerge: false,
-            groupByCategory: false
+            groupByCategory: false,
+            orderEmojis: false
         };
         
         // Theme
@@ -216,6 +217,7 @@ class EmojiDataPasta {
         // Data transforms
         document.getElementById('namemergeTransform').addEventListener('change', (e) => this.toggleDataTransform('nameMerge', e.target.checked));
         document.getElementById('groupByCategoryTransform').addEventListener('change', (e) => this.toggleDataTransform('groupByCategory', e.target.checked));
+        document.getElementById('orderEmojisTransform').addEventListener('change', (e) => this.toggleDataTransform('orderEmojis', e.target.checked));
         document.getElementById('resetTransforms').addEventListener('click', () => this.resetDataTransforms());
 
         // Bulk add terms modal
@@ -1444,6 +1446,7 @@ class EmojiDataPasta {
                     switch(name) {
                         case 'nameMerge': return 'Name Merge';
                         case 'groupByCategory': return 'Group by Category';
+                        case 'orderEmojis': return 'Order Emojis';
                         default: return name;
                     }
                 });
@@ -1518,6 +1521,7 @@ class EmojiDataPasta {
                 switch(name) {
                     case 'nameMerge': return 'Name Merge';
                     case 'groupByCategory': return 'Group by Category';
+                    case 'orderEmojis': return 'Order Emojis';
                     default: return name;
                 }
             });
@@ -2109,10 +2113,37 @@ class EmojiDataPasta {
             }
         });
 
+        // Always sort emojis by sort_order (if the field exists and is selected)
+        const sortOrderField = this.getOutputFieldName('sort_order');
+        if (this.selectedFields.has('sort_order')) {
+            processedData.sort((a, b) => {
+                const sortA = a[sortOrderField] || 0;
+                const sortB = b[sortOrderField] || 0;
+                return sortA - sortB;
+            });
+        }
+
         // Apply group by category transform if enabled
         let finalData = processedData;
         if (this.dataTransforms.groupByCategory) {
             finalData = this.applyGroupByCategoryTransform(processedData);
+        }
+
+        // If orderEmojis transform is enabled, remove the sort_order field AFTER all processing
+        if (this.dataTransforms.orderEmojis && this.selectedFields.has('sort_order')) {
+            if (this.dataTransforms.groupByCategory) {
+                // For grouped data, remove sort_order from each emoji in each category
+                Object.keys(finalData).forEach(category => {
+                    finalData[category].forEach(emoji => {
+                        delete emoji[sortOrderField];
+                    });
+                });
+            } else {
+                // For flat array, remove sort_order from each emoji
+                finalData.forEach(emoji => {
+                    delete emoji[sortOrderField];
+                });
+            }
         }
 
         // Add settings if enabled
@@ -2626,7 +2657,8 @@ class EmojiDataPasta {
         this.fieldRenames = new Map();
         this.dataTransforms = {
             nameMerge: false,
-            groupByCategory: false
+            groupByCategory: false,
+            orderEmojis: false
         };
         
         this.showMessage('Application reset successfully - reloading default emoji data', 'success');
@@ -4998,6 +5030,11 @@ class EmojiDataPasta {
                 beforeData = categoryPreview.before;
                 afterData = categoryPreview.after;
                 break;
+            case 'orderEmojis':
+                const orderPreview = this.generateOrderEmojisPreview();
+                beforeData = orderPreview.before;
+                afterData = orderPreview.after;
+                break;
             default:
                 beforeData = JSON.stringify({ error: 'Unknown transform' }, null, 2);
                 afterData = JSON.stringify({ error: 'Unknown transform' }, null, 2);
@@ -5140,6 +5177,82 @@ class EmojiDataPasta {
         };
     }
 
+    generateOrderEmojisPreview() {
+        const sortOrderField = this.getOutputFieldName('sort_order');
+        
+        // If no data loaded yet or sort_order not selected, use generic example
+        if (!this.originalData || this.originalData.length === 0 || !this.selectedFields.has('sort_order')) {
+            const before = [
+                { "name": "grinning face", [sortOrderField]: 1 },
+                { "name": "red apple", [sortOrderField]: 3 },
+                { "name": "thumbs up", [sortOrderField]: 2 }
+            ];
+            
+            const after = [
+                { "name": "grinning face" },
+                { "name": "thumbs up" },
+                { "name": "red apple" }
+            ];
+            
+            return {
+                before: JSON.stringify(before, null, 2),
+                after: JSON.stringify(after, null, 2)
+            };
+        }
+
+        // Use actual data from the user's dataset
+        const sampleEmojis = [];
+        const maxSamples = 3;
+        
+        // Collect sample emojis with different sort orders
+        for (let i = 0; i < this.originalData.length && sampleEmojis.length < maxSamples; i++) {
+            // Skip removed emojis
+            if (this.removedEmojis.has(i)) continue;
+            
+            const emoji = this.originalData[i];
+            
+            // Create a filtered version using actual user settings
+            const filteredEmoji = this.createFilteredEmoji(emoji);
+            if (filteredEmoji && Object.keys(filteredEmoji).length > 0 && filteredEmoji[sortOrderField] !== undefined) {
+                sampleEmojis.push(filteredEmoji);
+            }
+        }
+        
+        // If we don't have enough samples with sort_order, fall back to generic example
+        if (sampleEmojis.length < 2) {
+            const before = [
+                { "name": "emoji 1", [sortOrderField]: 10 },
+                { "name": "emoji 2", [sortOrderField]: 5 }
+            ];
+            
+            const after = [
+                { "name": "emoji 2" },
+                { "name": "emoji 1" }
+            ];
+            
+            return {
+                before: JSON.stringify(before, null, 2),
+                after: JSON.stringify(after, null, 2)
+            };
+        }
+        
+        // Create before array (unsorted with sort_order field)
+        const before = [...sampleEmojis];
+        
+        // Create after array (sorted without sort_order field)
+        const after = [...sampleEmojis]
+            .sort((a, b) => (a[sortOrderField] || 0) - (b[sortOrderField] || 0))
+            .map(emoji => {
+                const { [sortOrderField]: removed, ...emojiWithoutSortOrder } = emoji;
+                return emojiWithoutSortOrder;
+            });
+        
+        return {
+            before: JSON.stringify(before, null, 2),
+            after: JSON.stringify(after, null, 2)
+        };
+    }
+
     forceDataTransformCheckboxSync() {
         console.log('Forcing data transform checkbox sync...');
         
@@ -5228,7 +5341,7 @@ class EmojiDataPasta {
                 const emojiWithoutCategory = { ...emoji };
                 delete emojiWithoutCategory[categoryFieldName];
                 
-                // Add to the category group
+                // Add to the category group (order is preserved from processedData which is already sorted)
                 groupedByCategory[category].push(emojiWithoutCategory);
             }
         });
@@ -5275,6 +5388,12 @@ class EmojiDataPasta {
             }
         }
         
+        // Note: Order Emojis transform field removal happens in prepareExportData after sorting
+        
+        return result;
+    }
+    
+    deduplicateSearchTerms(terms) {
         return result;
     }
     

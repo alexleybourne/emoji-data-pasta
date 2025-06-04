@@ -468,6 +468,40 @@ word1, word2, word3" rows="6"></textarea>
                                             </div>
                                         </div>
                                     </div>
+
+                                    <!-- Order Emojis Transform -->
+                                    <div class="transform-item">
+                                        <div class="transform-header">
+                                            <label class="transform-label">
+                                                <input type="checkbox" id="orderEmojisTransform" class="transform-checkbox">
+                                                <span class="transform-title">Order Emojis</span>
+                                            </label>
+                                            <span class="transform-status" id="orderEmojisStatus">Inactive</span>
+                                        </div>
+                                        <div class="transform-description">
+                                            Sorts emojis by their <code>sort_order</code> field and removes the <code>sort_order</code> field since the order is now implicit. Works with grouped categories too.
+                                        </div>
+                                        <div class="transform-preview" id="orderEmojisPreview" style="display: none;">
+                                            <div class="preview-header">
+                                                <strong>🔍 Preview (Field Removal)</strong>
+                                            </div>
+                                            <div class="preview-content">
+                                                <div class="preview-before">
+                                                    <strong>Before:</strong>
+                                                    <div class="preview-code" id="orderEmojisBefore">
+                                                        <!-- Preview content -->
+                                                    </div>
+                                                </div>
+                                                <div class="preview-arrow">→</div>
+                                                <div class="preview-after">
+                                                    <strong>After:</strong>
+                                                    <div class="preview-code" id="orderEmojisAfter">
+                                                        <!-- Preview content -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 <div class="transforms-info">
