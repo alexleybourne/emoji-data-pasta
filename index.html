@@ -434,6 +434,40 @@ word1, word2, word3" rows="6"></textarea>
                                             </div>
                                         </div>
                                     </div>
+
+                                    <!-- Group by Category Transform -->
+                                    <div class="transform-item">
+                                        <div class="transform-header">
+                                            <label class="transform-label">
+                                                <input type="checkbox" id="groupByCategoryTransform" class="transform-checkbox">
+                                                <span class="transform-title">Group by Category</span>
+                                            </label>
+                                            <span class="transform-status" id="groupByCategoryStatus">Inactive</span>
+                                        </div>
+                                        <div class="transform-description">
+                                            Groups emojis by their category by putting them in arrays together and removes the <code>category</code> field and value from each emoji.
+                                        </div>
+                                        <div class="transform-preview" id="groupByCategoryPreview" style="display: none;">
+                                            <div class="preview-header">
+                                                <strong>🔍 Preview (Structure Change)</strong>
+                                            </div>
+                                            <div class="preview-content">
+                                                <div class="preview-before">
+                                                    <strong>Before:</strong>
+                                                    <div class="preview-code" id="groupByCategoryBefore">
+                                                        <!-- Preview content -->
+                                                    </div>
+                                                </div>
+                                                <div class="preview-arrow">→</div>
+                                                <div class="preview-after">
+                                                    <strong>After:</strong>
+                                                    <div class="preview-code" id="groupByCategoryAfter">
+                                                        <!-- Preview content -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 <div class="transforms-info">

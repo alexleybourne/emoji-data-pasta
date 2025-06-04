@@ -35,7 +35,8 @@ class EmojiDataPasta {
         
         // Data transform settings - initialize before loading persisted state
         this.dataTransforms = {
-            nameMerge: false
+            nameMerge: false,
+            groupByCategory: false
         };
         
         // Theme
@@ -214,6 +215,7 @@ class EmojiDataPasta {
         
         // Data transforms
         document.getElementById('namemergeTransform').addEventListener('change', (e) => this.toggleDataTransform('nameMerge', e.target.checked));
+        document.getElementById('groupByCategoryTransform').addEventListener('change', (e) => this.toggleDataTransform('groupByCategory', e.target.checked));
         document.getElementById('resetTransforms').addEventListener('click', () => this.resetDataTransforms());
 
         // Bulk add terms modal
@@ -1401,7 +1403,85 @@ class EmojiDataPasta {
             return;
         }
 
-        // Create a sample output based on selected fields from current emoji
+        // Check if Group by Category transform is active - if so, show grouped structure
+        if (this.dataTransforms.groupByCategory) {
+            // Show grouped structure preview for the current emoji only
+            const currentEmoji = this.originalData[this.currentEmojiIndex];
+            
+            // Add safety check for undefined currentEmoji
+            if (!currentEmoji) {
+                container.innerHTML = '<div class="loading">Invalid emoji index - please navigate to a valid emoji</div>';
+                return;
+            }
+            
+            const variantData = this.getCurrentVariantData(currentEmoji);
+            const filteredEmoji = this.createFilteredEmoji(variantData);
+            
+            // Get the category for this emoji (applying any mappings)
+            const categoryFieldName = this.getOutputFieldName('category');
+            let category = currentEmoji.category;
+            
+            // Apply category mappings if they exist
+            if (this.categoryMappings.has(category)) {
+                category = this.categoryMappings.get(category);
+            }
+            
+            // Remove category field from the emoji for the grouped structure
+            const { [categoryFieldName]: removed, ...emojiWithoutCategory } = filteredEmoji;
+            
+            // Create the grouped structure showing just this emoji's category
+            const groupedStructure = {
+                [category]: [emojiWithoutCategory]
+            };
+            
+            const jsonString = JSON.stringify(groupedStructure, null, 2);
+            const highlightedJson = this.highlightJson(jsonString);
+            
+            // Check if any transforms are active
+            const activeTransforms = Object.entries(this.dataTransforms)
+                .filter(([name, enabled]) => enabled)
+                .map(([name, enabled]) => {
+                    switch(name) {
+                        case 'nameMerge': return 'Name Merge';
+                        case 'groupByCategory': return 'Group by Category';
+                        default: return name;
+                    }
+                });
+            
+            // Create enhanced transform status indicator
+            let transformsIndicator = '';
+            if (activeTransforms.length > 0) {
+                transformsIndicator = `
+                    <div class="transforms-indicator" onclick="app.switchTab('data-transforms')" title="Click to view/edit transforms">
+                        <div class="transforms-header">
+                            <span class="transforms-icon">🤖</span>
+                            <span class="transforms-label">Active Transforms</span>
+                            <span class="transforms-count">${activeTransforms.length}</span>
+                        </div>
+                        <div class="transforms-list">
+                            ${activeTransforms.map(name => `<span class="transform-tag">${name}</span>`).join('')}
+                        </div>
+                        <div class="transforms-hint">💡 Click to manage transforms</div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = `
+                ${transformsIndicator}
+                <div class="json-code">${highlightedJson}</div>
+            `;
+            
+            // Also update both containers if both exist
+            const allContainers = document.querySelectorAll('#outputStructure, #tabOutputStructure');
+            allContainers.forEach(c => {
+                if (c) {
+                    c.innerHTML = `${transformsIndicator}<div class="json-code">${highlightedJson}</div>`;
+                }
+            });
+            return;
+        }
+
+        // Default individual emoji preview (when Group by Category is not active)
         const currentEmoji = this.originalData[this.currentEmojiIndex];
         
         // Add safety check for undefined currentEmoji
@@ -1437,6 +1517,7 @@ class EmojiDataPasta {
             .map(([name, enabled]) => {
                 switch(name) {
                     case 'nameMerge': return 'Name Merge';
+                    case 'groupByCategory': return 'Group by Category';
                     default: return name;
                 }
             });
@@ -2028,8 +2109,11 @@ class EmojiDataPasta {
             }
         });
 
-        // Always return as simple array, no object wrapping option
+        // Apply group by category transform if enabled
         let finalData = processedData;
+        if (this.dataTransforms.groupByCategory) {
+            finalData = this.applyGroupByCategoryTransform(processedData);
+        }
 
         // Add settings if enabled
         if (this.settings.saveSettings) {
@@ -2083,7 +2167,7 @@ class EmojiDataPasta {
             // Only add settings if there's actually something to save
             if (Object.keys(settingsToSave).length > 0) {
                 finalData = {
-                    data: processedData,
+                    data: finalData,
                     emoji_data_pasta_settings: settingsToSave
                 };
             }
@@ -2541,7 +2625,8 @@ class EmojiDataPasta {
         // Reset field renames and data transforms
         this.fieldRenames = new Map();
         this.dataTransforms = {
-            nameMerge: false
+            nameMerge: false,
+            groupByCategory: false
         };
         
         this.showMessage('Application reset successfully - reloading default emoji data', 'success');
@@ -4903,12 +4988,19 @@ class EmojiDataPasta {
         
         switch (transformName) {
             case 'nameMerge':
-                beforeData = this.generateNameMergePreview(currentEmoji, false);
-                afterData = this.generateNameMergePreview(currentEmoji, true);
+                const namePreview = this.generateNameMergePreview(currentEmoji, false);
+                const namePreviewTransformed = this.generateNameMergePreview(currentEmoji, true);
+                beforeData = namePreview.before;
+                afterData = namePreviewTransformed.after;
+                break;
+            case 'groupByCategory':
+                const categoryPreview = this.generateGroupByCategoryPreview();
+                beforeData = categoryPreview.before;
+                afterData = categoryPreview.after;
                 break;
             default:
-                beforeData = { error: 'Unknown transform' };
-                afterData = { error: 'Unknown transform' };
+                beforeData = JSON.stringify({ error: 'Unknown transform' }, null, 2);
+                afterData = JSON.stringify({ error: 'Unknown transform' }, null, 2);
         }
         
         // Update preview content
@@ -4916,8 +5008,8 @@ class EmojiDataPasta {
         const afterElement = document.getElementById(`${transformName}After`);
         
         if (beforeElement && afterElement) {
-            beforeElement.textContent = typeof beforeData === 'string' ? beforeData : JSON.stringify(beforeData, null, 2);
-            afterElement.textContent = typeof afterData === 'string' ? afterData : JSON.stringify(afterData, null, 2);
+            beforeElement.textContent = beforeData;
+            afterElement.textContent = afterData;
         }
     }
 
@@ -4932,38 +5024,216 @@ class EmojiDataPasta {
         const nameFieldName = this.getOutputFieldName('name');
         const shortNamesFieldName = this.getOutputFieldName('short_names');
         
-        const before = {};
-        before[nameFieldName] = emoji.name;
-        before[shortNamesFieldName] = emoji.short_names;
+        const filtered = this.createFilteredEmoji(emoji);
         
-        if (applyTransform) {
-            // Apply the same logic as the actual transform
-            const nameToAdd = emoji.name.toLowerCase();
-            const normalizedNameToAdd = nameToAdd.replace(/[_-]/g, ' ');
+        // Before - show original structure
+        const before = {
+            [nameFieldName]: filtered[nameFieldName],
+            [shortNamesFieldName]: filtered[shortNamesFieldName]
+        };
+        
+        // After - show transformed structure
+        let after = {};
+        if (applyTransform && filtered[nameFieldName] && filtered[shortNamesFieldName]) {
+            const transformedEmoji = this.applyDataTransforms(filtered, emoji);
+            after[shortNamesFieldName] = transformedEmoji[shortNamesFieldName];
+        } else {
+            after = { ...before };
+        }
+        
+        return {
+            before: JSON.stringify(before, null, 2),
+            after: JSON.stringify(after, null, 2)
+        };
+    }
+
+    generateGroupByCategoryPreview() {
+        const categoryFieldName = this.getOutputFieldName('category');
+        
+        // If no data loaded yet, use generic example
+        if (!this.originalData || this.originalData.length === 0) {
+            const before = [
+                { "name": "grinning face", [categoryFieldName]: "Smileys & Emotion" },
+                { "name": "red apple", [categoryFieldName]: "Food & Drink" },
+                { "name": "thumbs up", [categoryFieldName]: "People & Body" }
+            ];
             
-            // Start with existing short_names array, normalizing them to replace underscores and hyphens with spaces
-            let mergedShortNames = emoji.short_names.map(term => term.replace(/[_-]/g, ' '));
+            const after = {
+                "Smileys & Emotion": [
+                    { "name": "grinning face" }
+                ],
+                "Food & Drink": [
+                    { "name": "red apple" }
+                ],
+                "People & Body": [
+                    { "name": "thumbs up" }
+                ]
+            };
             
-            // Add the name if it's not already in the array (case-insensitive, treating _ and - as spaces)
-            const nameExists = mergedShortNames.some(term => 
-                term.toLowerCase().replace(/[_-]/g, ' ') === normalizedNameToAdd
-            );
+            return {
+                before: JSON.stringify(before, null, 2),
+                after: JSON.stringify(after, null, 2)
+            };
+        }
+
+        // Use actual data from the user's dataset
+        const categorySamples = new Map();
+        const maxSamplesPerCategory = 2;
+        const maxCategories = 3;
+        
+        // Collect sample emojis from different categories
+        for (let i = 0; i < this.originalData.length && categorySamples.size < maxCategories; i++) {
+            // Skip removed emojis
+            if (this.removedEmojis.has(i)) continue;
             
-            if (!nameExists) {
-                // Use the normalized version (with spaces instead of underscores/hyphens)
-                mergedShortNames.push(normalizedNameToAdd);
+            const emoji = this.originalData[i];
+            let category = emoji.category;
+            
+            // Apply category mappings if they exist
+            if (this.categoryMappings.has(category)) {
+                category = this.categoryMappings.get(category);
             }
             
-            // Remove duplicates and redundant substrings
-            mergedShortNames = this.deduplicateSearchTerms(mergedShortNames);
+            // Skip excluded categories
+            if (this.excludedCategories.has(category)) continue;
             
-            const after = {};
-            after[shortNamesFieldName] = mergedShortNames;
+            // Initialize category if not seen
+            if (!categorySamples.has(category)) {
+                categorySamples.set(category, []);
+            }
             
-            return after;
-        } else {
-            return before;
+            // Add emoji if we haven't reached the limit for this category
+            const categoryEmojis = categorySamples.get(category);
+            if (categoryEmojis.length < maxSamplesPerCategory) {
+                // Create a filtered version using actual user settings
+                const filteredEmoji = this.createFilteredEmoji(emoji);
+                if (filteredEmoji && Object.keys(filteredEmoji).length > 0) {
+                    categoryEmojis.push(filteredEmoji);
+                }
+            }
         }
+        
+        // Create before array (showing original structure)
+        const before = [];
+        categorySamples.forEach((emojis, category) => {
+            emojis.forEach(emoji => {
+                // Ensure category field is present in the before example
+                const beforeEmoji = { ...emoji };
+                beforeEmoji[categoryFieldName] = category;
+                before.push(beforeEmoji);
+            });
+        });
+        
+        // Create after object (grouped structure)
+        const after = {};
+        categorySamples.forEach((emojis, category) => {
+            after[category] = emojis.map(emoji => {
+                // Remove category field for after example
+                const { [categoryFieldName]: removed, ...emojiWithoutCategory } = emoji;
+                return emojiWithoutCategory;
+            });
+        });
+        
+        return {
+            before: JSON.stringify(before, null, 2),
+            after: JSON.stringify(after, null, 2)
+        };
+    }
+
+    forceDataTransformCheckboxSync() {
+        console.log('Forcing data transform checkbox sync...');
+        
+        // Force synchronization of checkbox states with JavaScript state
+        // This addresses persistent browser cache/state issues
+        Object.keys(this.dataTransforms).forEach(transform => {
+            // Map transform names to their HTML element IDs
+            const checkboxId = transform === 'nameMerge' ? 'namemergeTransform' : `${transform}Transform`;
+            const checkbox = document.getElementById(checkboxId);
+            
+            if (checkbox) {
+                console.log(`Syncing ${transform}: JS=${this.dataTransforms[transform]}, DOM=${checkbox.checked}`);
+                
+                // Clear any cached browser state and force sync
+                checkbox.checked = false; // Clear first
+                setTimeout(() => {
+                    checkbox.checked = this.dataTransforms[transform]; // Then set correct state
+                }, 10);
+                
+                // Update visual status and preview
+                this.updateTransformStatus(transform, this.dataTransforms[transform]);
+                
+                if (this.dataTransforms[transform]) {
+                    this.showTransformPreview(transform);
+                } else {
+                    this.hideTransformPreview(transform);
+                }
+            } else {
+                console.warn(`Checkbox element not found for ${checkboxId} (transform: ${transform})`);
+            }
+        });
+        
+        this.updateTransformsCounter();
+        
+        // Update the output preview to reflect any changes
+        if (this.originalData.length > 0) {
+            setTimeout(() => this.renderOutputPreview(), 50);
+        }
+    }
+
+    // Add a method to validate and sync state when switching tabs
+    validateTransformState() {
+        console.log('Validating transform state...');
+        let needsSync = false;
+        
+        Object.keys(this.dataTransforms).forEach(transformName => {
+            // Map transform names to their HTML element IDs
+            const checkboxId = transformName === 'nameMerge' ? 'namemergeTransform' : `${transformName}Transform`;
+            const checkbox = document.getElementById(checkboxId);
+            
+            if (checkbox && checkbox.checked !== this.dataTransforms[transformName]) {
+                console.warn(`Transform state mismatch detected for ${transformName}`);
+                needsSync = true;
+                // Sync to DOM state (user interaction takes precedence)
+                this.dataTransforms[transformName] = checkbox.checked;
+            }
+        });
+        
+        if (needsSync) {
+            console.log('Syncing state to match DOM...');
+            this.saveState();
+            this.renderOutputPreview();
+        }
+        
+        return needsSync;
+    }
+
+    applyGroupByCategoryTransform(processedData) {
+        // Find the category field name (could be renamed)
+        const categoryFieldName = this.getOutputFieldName('category');
+        
+        // Group emojis by category
+        const groupedByCategory = {};
+        
+        processedData.forEach(emoji => {
+            // Get the category value
+            const category = emoji[categoryFieldName];
+            
+            if (category) {
+                // Initialize array for this category if it doesn't exist
+                if (!groupedByCategory[category]) {
+                    groupedByCategory[category] = [];
+                }
+                
+                // Create a copy of the emoji without the category field
+                const emojiWithoutCategory = { ...emoji };
+                delete emojiWithoutCategory[categoryFieldName];
+                
+                // Add to the category group
+                groupedByCategory[category].push(emojiWithoutCategory);
+            }
+        });
+        
+        return groupedByCategory;
     }
 
     applyDataTransforms(filteredEmoji, originalEmoji) {
@@ -5194,73 +5464,6 @@ class EmojiDataPasta {
         }
         
         return finalTerms;
-    }
-
-    forceDataTransformCheckboxSync() {
-        console.log('Forcing data transform checkbox sync...');
-        
-        // Force synchronization of checkbox states with JavaScript state
-        // This addresses persistent browser cache/state issues
-        Object.keys(this.dataTransforms).forEach(transform => {
-            // Map transform names to their HTML element IDs
-            const checkboxId = transform === 'nameMerge' ? 'namemergeTransform' : `${transform}Transform`;
-            const checkbox = document.getElementById(checkboxId);
-            
-            if (checkbox) {
-                console.log(`Syncing ${transform}: JS=${this.dataTransforms[transform]}, DOM=${checkbox.checked}`);
-                
-                // Clear any cached browser state and force sync
-                checkbox.checked = false; // Clear first
-                setTimeout(() => {
-                    checkbox.checked = this.dataTransforms[transform]; // Then set correct state
-                }, 10);
-                
-                // Update visual status and preview
-                this.updateTransformStatus(transform, this.dataTransforms[transform]);
-                
-                if (this.dataTransforms[transform]) {
-                    this.showTransformPreview(transform);
-                } else {
-                    this.hideTransformPreview(transform);
-                }
-            } else {
-                console.warn(`Checkbox element not found for ${checkboxId} (transform: ${transform})`);
-            }
-        });
-        
-        this.updateTransformsCounter();
-        
-        // Update the output preview to reflect any changes
-        if (this.originalData.length > 0) {
-            setTimeout(() => this.renderOutputPreview(), 50);
-        }
-    }
-
-    // Add a method to validate and sync state when switching tabs
-    validateTransformState() {
-        console.log('Validating transform state...');
-        let needsSync = false;
-        
-        Object.keys(this.dataTransforms).forEach(transformName => {
-            // Map transform names to their HTML element IDs
-            const checkboxId = transformName === 'nameMerge' ? 'namemergeTransform' : `${transformName}Transform`;
-            const checkbox = document.getElementById(checkboxId);
-            
-            if (checkbox && checkbox.checked !== this.dataTransforms[transformName]) {
-                console.warn(`Transform state mismatch detected for ${transformName}`);
-                needsSync = true;
-                // Sync to DOM state (user interaction takes precedence)
-                this.dataTransforms[transformName] = checkbox.checked;
-            }
-        });
-        
-        if (needsSync) {
-            console.log('Syncing state to match DOM...');
-            this.saveState();
-            this.renderOutputPreview();
-        }
-        
-        return needsSync;
     }
 }
 

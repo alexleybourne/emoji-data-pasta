@@ -4357,6 +4357,7 @@ select:focus {
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 1rem;
+    width: 100%;
     transition: all 0.2s ease;
 }
 
