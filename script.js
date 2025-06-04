@@ -34,6 +34,11 @@ class EmojiDataPasta {
             filename: 'emoji-edited.json'
         };
         
+        // Data transform settings - initialize before loading persisted state
+        this.dataTransforms = {
+            nameMerge: false
+        };
+        
         // Theme
         this.theme = localStorage.getItem('emoji-pasta-theme') || 'dark';
         
@@ -44,6 +49,11 @@ class EmojiDataPasta {
         this.loadDefaultData();
         this.loadPersistedState();
         this.applyTheme();
+        
+        // Ensure data transforms checkboxes are properly synced after all initialization
+        setTimeout(() => {
+            this.forceDataTransformCheckboxSync();
+        }, 50);
     }
 
     getFieldDescriptions() {
@@ -175,6 +185,16 @@ class EmojiDataPasta {
         // Theme toggle
         document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
 
+        // Tab switching
+        document.querySelectorAll('.tool-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const tabName = e.target.dataset.tab;
+                if (tabName) {
+                    this.switchTab(tabName);
+                }
+            });
+        });
+
         // Tooltip functionality
         this.initializeTooltips();
 
@@ -195,14 +215,13 @@ class EmojiDataPasta {
         document.getElementById('addSearchTerm').addEventListener('click', () => this.addCustomSearchTerm());
         document.getElementById('clearCustomTerms').addEventListener('click', () => this.clearCustomTermsForCurrentEmoji());
         document.getElementById('resetAllCustomTerms').addEventListener('click', () => this.resetAllCustomSearchTerms());
-
-        // Tab switching
-        document.querySelectorAll('.tool-tab').forEach(tab => {
-            tab.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-        });
-
-        // Bulk add search terms
         document.getElementById('bulkAddTerms').addEventListener('click', () => this.showBulkAddTermsModal());
+        
+        // Data transforms
+        document.getElementById('namemergeTransform').addEventListener('change', (e) => this.toggleDataTransform('nameMerge', e.target.checked));
+        document.getElementById('resetTransforms').addEventListener('click', () => this.resetDataTransforms());
+
+        // Bulk add terms modal
         document.getElementById('closeBulkAddTerms').addEventListener('click', () => this.hideBulkAddTermsModal());
         document.getElementById('cancelBulkAddTerms').addEventListener('click', () => this.hideBulkAddTermsModal());
         document.getElementById('analyzeTerms').addEventListener('click', () => this.analyzeInputTerms());
@@ -836,6 +855,11 @@ class EmojiDataPasta {
         // Clean up temporary state
         this.savedMinimalState = null;
         
+        // Force checkbox sync after all data loading is complete
+        setTimeout(() => {
+            this.forceDataTransformCheckboxSync();
+        }, 10);
+        
         console.log('🏁 LOADDATA COMPLETE - calling detectCustomSearchTerms will happen next');
     }
 
@@ -923,6 +947,7 @@ class EmojiDataPasta {
         this.renderCategoryManager();
         this.renderSearchTermsManager();
         this.renderRemovedManager();
+        this.renderDataTransforms();
         this.renderOutputPreview();
     }
 
@@ -1063,6 +1088,7 @@ class EmojiDataPasta {
         this.hideEmojiBrowser();
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
+        this.updateActiveTransformPreviews();
         this.renderOutputPreview();
         this.showMessage(`Selected: ${this.originalData[emojiIndex].name}`, 'success');
         this.saveState();
@@ -1078,6 +1104,7 @@ class EmojiDataPasta {
         this.currentVariant = 'default';
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
+        this.updateActiveTransformPreviews();
         this.renderOutputPreview();
         this.saveState();
     }
@@ -1092,6 +1119,7 @@ class EmojiDataPasta {
         this.currentVariant = 'default';
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
+        this.updateActiveTransformPreviews();
         this.renderOutputPreview();
         this.saveState();
     }
@@ -1103,6 +1131,7 @@ class EmojiDataPasta {
         this.currentVariant = 'default';
         this.updateEmojiDisplay();
         this.renderOriginalStructure();
+        this.updateActiveTransformPreviews();
         this.renderOutputPreview();
         this.saveState();
     }
@@ -1362,7 +1391,52 @@ class EmojiDataPasta {
         const jsonString = JSON.stringify(sampleOutput, null, 2);
         const highlightedJson = this.highlightJson(jsonString);
         
+        // Debug: Log current transform state
+        console.log('Current dataTransforms state:', this.dataTransforms);
+        
+        // Validate state sync with DOM elements
+        Object.keys(this.dataTransforms).forEach(transformName => {
+            // Map transform names to their HTML element IDs
+            const checkboxId = transformName === 'nameMerge' ? 'namemergeTransform' : `${transformName}Transform`;
+            const checkbox = document.getElementById(checkboxId);
+            
+            if (checkbox && checkbox.checked !== this.dataTransforms[transformName]) {
+                console.warn(`State mismatch for ${transformName}: JS=${this.dataTransforms[transformName]}, DOM=${checkbox.checked}`);
+                // Force sync
+                this.dataTransforms[transformName] = checkbox.checked;
+            }
+        });
+        
+        // Check if any transforms are active
+        const activeTransforms = Object.entries(this.dataTransforms)
+            .filter(([name, enabled]) => enabled)
+            .map(([name, enabled]) => {
+                switch(name) {
+                    case 'nameMerge': return 'Name Merge';
+                    default: return name;
+                }
+            });
+        
+        // Create enhanced transform status indicator
+        let transformsIndicator = '';
+        if (activeTransforms.length > 0) {
+            transformsIndicator = `
+                <div class="transforms-indicator" onclick="app.switchTab('data-transforms')" title="Click to view/edit transforms">
+                    <div class="transforms-header">
+                        <span class="transforms-icon">🤖</span>
+                        <span class="transforms-label">Active Transforms</span>
+                        <span class="transforms-count">${activeTransforms.length}</span>
+                    </div>
+                    <div class="transforms-list">
+                        ${activeTransforms.map(name => `<span class="transform-tag">${name}</span>`).join('')}
+                    </div>
+                    <div class="transforms-hint">💡 Click to manage transforms</div>
+                </div>
+            `;
+        }
+        
         container.innerHTML = `
+            ${transformsIndicator}
             <div class="json-code">${highlightedJson}</div>
         `;
         
@@ -1370,7 +1444,7 @@ class EmojiDataPasta {
         const allContainers = document.querySelectorAll('#outputStructure, #tabOutputStructure');
         allContainers.forEach(c => {
             if (c) {
-                c.innerHTML = `<div class="json-code">${highlightedJson}</div>`;
+                c.innerHTML = `${transformsIndicator}<div class="json-code">${highlightedJson}</div>`;
             }
         });
     }
@@ -1726,6 +1800,15 @@ class EmojiDataPasta {
             }
         }
 
+        // Apply data transforms as the final step, but only if any are enabled
+        if (Object.keys(filtered).length > 0) {
+            const hasActiveTransforms = Object.values(this.dataTransforms).some(enabled => enabled);
+            if (hasActiveTransforms) {
+                const transformedEmoji = this.applyDataTransforms(filtered, originalEmoji);
+                return transformedEmoji;
+            }
+        }
+        
         return Object.keys(filtered).length > 0 ? filtered : null;
     }
 
@@ -2310,6 +2393,11 @@ class EmojiDataPasta {
                 this.fieldRenames = new Map(state.fieldRenames);
             }
             
+            // Restore data transforms
+            if (state.dataTransforms) {
+                this.dataTransforms = { ...this.dataTransforms, ...state.dataTransforms };
+            }
+            
             // Note: selectedCategories is not persisted as it's a UI state that should reset
             
             console.log('Loaded persisted state');
@@ -2331,6 +2419,7 @@ class EmojiDataPasta {
                 excludedCategories: Array.from(this.excludedCategories),
                 customSearchTerms: Array.from(this.customSearchTerms.entries()),
                 fieldRenames: Array.from(this.fieldRenames.entries()),
+                dataTransforms: this.dataTransforms,
                 fieldSchema: this.fieldSchema,
                 settings: this.settings,
                 timestamp: Date.now()
@@ -2411,6 +2500,12 @@ class EmojiDataPasta {
         
         // Reload default data after reset
         this.loadDefaultData();
+        
+        // Reset field renames and data transforms
+        this.fieldRenames = new Map();
+        this.dataTransforms = {
+            nameMerge: false
+        };
         
         this.showMessage('Application reset successfully - reloading default emoji data', 'success');
     }
@@ -3572,27 +3667,51 @@ class EmojiDataPasta {
     }
 
     switchTab(tabName) {
-        // Remove active class from all tabs and panels
-        document.querySelectorAll('.tool-tab').forEach(tab => tab.classList.remove('active'));
-        document.querySelectorAll('.tool-panel').forEach(panel => panel.classList.remove('active'));
+        // Hide all tool panels
+        document.querySelectorAll('.tool-panel').forEach(panel => {
+            panel.classList.remove('active');
+        });
         
-        // Add active class to selected tab and panel
-        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-        document.getElementById(`${tabName}-tab`).classList.add('active');
+        // Remove active class from all tabs
+        document.querySelectorAll('.tool-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
         
-        // Force update JSON views when switching to field manager tab
-        if (tabName === 'field-manager' && this.originalData.length > 0) {
-            setTimeout(() => {
-                this.renderOriginalStructure();
+        // Show selected panel and activate selected tab
+        const selectedPanel = document.getElementById(`${tabName}-tab`);
+        const selectedTab = document.querySelector(`[data-tab="${tabName}"]`);
+        
+        if (selectedPanel && selectedTab) {
+            selectedPanel.classList.add('active');
+            selectedTab.classList.add('active');
+            
+            // Special handling for data transforms tab
+            if (tabName === 'data-transforms') {
+                console.log('Switching to data transforms tab...');
+                // Validate and sync transform state
+                this.validateTransformState();
+                // Force checkbox sync to ensure UI matches state
+                setTimeout(() => {
+                    this.forceDataTransformCheckboxSync();
+                }, 50);
+                // Ensure previews are updated
+                setTimeout(() => {
+                    this.updateActiveTransformPreviews();
+                }, 100);
+            }
+            
+            // Update active transform previews when switching tabs
+            if (this.originalData.length > 0) {
+                this.updateActiveTransformPreviews();
                 this.renderOutputPreview();
-            }, 10);
-        }
-        
-        // Update search terms when switching to that tab
-        if (tabName === 'search-terms' && this.originalData.length > 0) {
-            setTimeout(() => {
-                this.renderSearchTermsManager();
-            }, 10);
+                
+                // Update any emoji navigation in the new tab
+                if (this.currentEmojiIndex < this.originalData.length) {
+                    this.updateEmojiDisplay();
+                }
+            }
+        } else {
+            console.warn(`Tab switching failed: selectedPanel=${!!selectedPanel}, selectedTab=${!!selectedTab}, tabName=${tabName}`);
         }
     }
 
@@ -4641,6 +4760,339 @@ class EmojiDataPasta {
         const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
         return text.toString().replace(regex, '<mark class="search-highlight">$1</mark>');
     }
+
+    // Data Transform Methods
+    toggleDataTransform(transformName, enabled) {
+        this.dataTransforms[transformName] = enabled;
+        this.updateTransformStatus(transformName, enabled);
+        this.updateTransformsCounter();
+        
+        if (enabled) {
+            this.showTransformPreview(transformName);
+        } else {
+            this.hideTransformPreview(transformName);
+        }
+        
+        // Update output preview to show transform effects
+        if (this.originalData.length > 0) {
+            this.renderOutputPreview();
+        }
+        
+        // Save state
+        this.saveState();
+    }
+
+    resetDataTransforms() {
+        // Reset all transforms
+        Object.keys(this.dataTransforms).forEach(transform => {
+            this.dataTransforms[transform] = false;
+            const checkbox = document.getElementById(`${transform}Transform`);
+            if (checkbox) {
+                checkbox.checked = false;
+            }
+            this.updateTransformStatus(transform, false);
+            this.hideTransformPreview(transform);
+        });
+        
+        this.updateTransformsCounter();
+        
+        // Update output preview
+        if (this.originalData.length > 0) {
+            this.renderOutputPreview();
+        }
+        
+        this.saveState();
+        this.showMessage('All data transforms reset', 'success');
+    }
+
+    updateTransformStatus(transformName, enabled) {
+        const statusElement = document.getElementById(`${transformName}Status`);
+        if (statusElement) {
+            statusElement.textContent = enabled ? 'Active' : 'Inactive';
+            statusElement.style.background = enabled ? 'var(--success-bg)' : 'var(--bg-secondary)';
+            statusElement.style.color = enabled ? 'var(--success-text)' : 'var(--text-tertiary)';
+            statusElement.style.border = enabled ? '1px solid var(--success-border)' : '1px solid var(--border-secondary)';
+        }
+    }
+
+    updateTransformsCounter() {
+        const activeCount = Object.values(this.dataTransforms).filter(Boolean).length;
+        const counterElement = document.getElementById('transformsCounter');
+        if (counterElement) {
+            counterElement.textContent = `${activeCount} transform${activeCount !== 1 ? 's' : ''} active`;
+        }
+    }
+
+    renderDataTransforms() {
+        // Update transform states from current settings
+        Object.keys(this.dataTransforms).forEach(transform => {
+            const checkbox = document.getElementById(`${transform}Transform`);
+            if (checkbox) {
+                // Force sync the checkbox state with JavaScript state
+                checkbox.checked = this.dataTransforms[transform];
+                this.updateTransformStatus(transform, this.dataTransforms[transform]);
+                
+                if (this.dataTransforms[transform]) {
+                    this.showTransformPreview(transform);
+                } else {
+                    this.hideTransformPreview(transform);
+                }
+            }
+        });
+        
+        this.updateTransformsCounter();
+    }
+
+    updateActiveTransformPreviews() {
+        // Update preview content for all active transforms (called when emoji changes)
+        Object.keys(this.dataTransforms).forEach(transform => {
+            if (this.dataTransforms[transform]) {
+                this.showTransformPreview(transform);
+            }
+        });
+    }
+
+    showTransformPreview(transformName) {
+        const previewElement = document.getElementById(`${transformName}Preview`);
+        if (!previewElement || this.originalData.length === 0) return;
+        
+        const currentEmoji = this.originalData[this.currentEmojiIndex];
+        if (!currentEmoji) return;
+        
+        previewElement.style.display = 'block';
+        
+        // Generate before/after data based on transform type
+        let beforeData, afterData;
+        
+        switch (transformName) {
+            case 'nameMerge':
+                beforeData = this.generateNameMergePreview(currentEmoji, false);
+                afterData = this.generateNameMergePreview(currentEmoji, true);
+                break;
+            default:
+                beforeData = { error: 'Unknown transform' };
+                afterData = { error: 'Unknown transform' };
+        }
+        
+        // Update preview content
+        const beforeElement = document.getElementById(`${transformName}Before`);
+        const afterElement = document.getElementById(`${transformName}After`);
+        
+        if (beforeElement && afterElement) {
+            beforeElement.textContent = typeof beforeData === 'string' ? beforeData : JSON.stringify(beforeData, null, 2);
+            afterElement.textContent = typeof afterData === 'string' ? afterData : JSON.stringify(afterData, null, 2);
+        }
+    }
+
+    hideTransformPreview(transformName) {
+        const previewElement = document.getElementById(`${transformName}Preview`);
+        if (previewElement) {
+            previewElement.style.display = 'none';
+        }
+    }
+
+    generateNameMergePreview(emoji, applyTransform) {
+        const nameFieldName = this.getOutputFieldName('name');
+        const shortNamesFieldName = this.getOutputFieldName('short_names');
+        
+        const before = {};
+        before[nameFieldName] = emoji.name;
+        before[shortNamesFieldName] = emoji.short_names;
+        
+        if (applyTransform) {
+            // Apply the same logic as the actual transform
+            const nameToAdd = emoji.name.toLowerCase();
+            const normalizedNameToAdd = nameToAdd.replace(/[_-]/g, ' ');
+            
+            // Start with existing short_names array, normalizing them to replace underscores and hyphens with spaces
+            let mergedShortNames = emoji.short_names.map(term => term.replace(/[_-]/g, ' '));
+            
+            // Add the name if it's not already in the array (case-insensitive, treating _ and - as spaces)
+            const nameExists = mergedShortNames.some(term => 
+                term.toLowerCase().replace(/[_-]/g, ' ') === normalizedNameToAdd
+            );
+            
+            if (!nameExists) {
+                // Use the normalized version (with spaces instead of underscores/hyphens)
+                mergedShortNames.push(normalizedNameToAdd);
+            }
+            
+            // Remove duplicates and redundant substrings
+            mergedShortNames = this.deduplicateSearchTerms(mergedShortNames);
+            
+            const after = {};
+            after[shortNamesFieldName] = mergedShortNames;
+            
+            return after;
+        } else {
+            return before;
+        }
+    }
+
+    applyDataTransforms(filteredEmoji, originalEmoji) {
+        let result = { ...filteredEmoji };
+        
+        // Apply name merge transform
+        if (this.dataTransforms.nameMerge) {
+            // Find the name and short_names fields, accounting for field renames
+            const nameFieldName = this.getOutputFieldName('name');
+            const shortNamesFieldName = this.getOutputFieldName('short_names');
+            
+            const nameValue = result[nameFieldName];
+            const shortNamesValue = result[shortNamesFieldName];
+            
+            if (nameValue && shortNamesValue) {
+                // Get the name in lowercase for comparison
+                const nameToAdd = nameValue.toLowerCase();
+                const normalizedNameToAdd = nameToAdd.replace(/[_-]/g, ' ');
+                
+                // Start with existing short_names array, normalizing them to replace underscores and hyphens with spaces
+                let mergedShortNames = shortNamesValue.map(term => term.replace(/[_-]/g, ' '));
+                
+                // Add the name if it's not already in the array (case-insensitive, treating _ and - as spaces)
+                const nameExists = mergedShortNames.some(term => 
+                    term.toLowerCase().replace(/[_-]/g, ' ') === normalizedNameToAdd
+                );
+                
+                if (!nameExists) {
+                    // Use the normalized version (with spaces instead of underscores/hyphens)
+                    mergedShortNames.push(normalizedNameToAdd);
+                }
+                
+                // Remove duplicates and redundant substrings
+                mergedShortNames = this.deduplicateSearchTerms(mergedShortNames);
+                
+                // Update the result
+                result[shortNamesFieldName] = mergedShortNames;
+                delete result[nameFieldName];
+            }
+        }
+        
+        return result;
+    }
+    
+    deduplicateSearchTerms(terms) {
+        // First normalize all terms to replace underscores and hyphens with spaces
+        const normalizedTerms = terms.map(term => term.replace(/[_-]/g, ' '));
+        
+        // Helper function to normalize terms for comparison 
+        const normalizeForComparison = (term) => {
+            return term.toLowerCase().replace(/[_-]/g, ' ');
+        };
+        
+        // Convert all terms with normalized versions for comparison, but keep original casing
+        const termPairs = normalizedTerms.map(term => ({
+            original: term,
+            normalized: normalizeForComparison(term)
+        }));
+        
+        // Remove exact duplicates first (including _ vs - vs space equivalents)
+        const uniqueTerms = [];
+        const seenNormalized = new Set();
+        
+        for (const pair of termPairs) {
+            if (!seenNormalized.has(pair.normalized)) {
+                seenNormalized.add(pair.normalized);
+                uniqueTerms.push(pair);
+            }
+        }
+        
+        // Remove substring redundancies (keep longer terms)
+        const finalTerms = [];
+        
+        for (let i = 0; i < uniqueTerms.length; i++) {
+            const currentTerm = uniqueTerms[i];
+            let isSubstring = false;
+            
+            // Check if current term is a substring of any other term
+            for (let j = 0; j < uniqueTerms.length; j++) {
+                if (i !== j) {
+                    const otherTerm = uniqueTerms[j];
+                    
+                    // If current term is shorter and is contained in the other term
+                    if (currentTerm.normalized.length < otherTerm.normalized.length && 
+                        otherTerm.normalized.includes(currentTerm.normalized)) {
+                        isSubstring = true;
+                        break;
+                    }
+                }
+            }
+            
+            // Only keep terms that are not substrings of longer terms
+            if (!isSubstring) {
+                finalTerms.push(currentTerm.original);
+            }
+        }
+        
+        return finalTerms;
+    }
+
+    forceDataTransformCheckboxSync() {
+        console.log('Forcing data transform checkbox sync...');
+        
+        // Force synchronization of checkbox states with JavaScript state
+        // This addresses persistent browser cache/state issues
+        Object.keys(this.dataTransforms).forEach(transform => {
+            // Map transform names to their HTML element IDs
+            const checkboxId = transform === 'nameMerge' ? 'namemergeTransform' : `${transform}Transform`;
+            const checkbox = document.getElementById(checkboxId);
+            
+            if (checkbox) {
+                console.log(`Syncing ${transform}: JS=${this.dataTransforms[transform]}, DOM=${checkbox.checked}`);
+                
+                // Clear any cached browser state and force sync
+                checkbox.checked = false; // Clear first
+                setTimeout(() => {
+                    checkbox.checked = this.dataTransforms[transform]; // Then set correct state
+                }, 10);
+                
+                // Update visual status and preview
+                this.updateTransformStatus(transform, this.dataTransforms[transform]);
+                
+                if (this.dataTransforms[transform]) {
+                    this.showTransformPreview(transform);
+                } else {
+                    this.hideTransformPreview(transform);
+                }
+            } else {
+                console.warn(`Checkbox element not found for ${checkboxId} (transform: ${transform})`);
+            }
+        });
+        
+        this.updateTransformsCounter();
+        
+        // Update the output preview to reflect any changes
+        if (this.originalData.length > 0) {
+            setTimeout(() => this.renderOutputPreview(), 50);
+        }
+    }
+
+    // Add a method to validate and sync state when switching tabs
+    validateTransformState() {
+        console.log('Validating transform state...');
+        let needsSync = false;
+        
+        Object.keys(this.dataTransforms).forEach(transformName => {
+            // Map transform names to their HTML element IDs
+            const checkboxId = transformName === 'nameMerge' ? 'namemergeTransform' : `${transformName}Transform`;
+            const checkbox = document.getElementById(checkboxId);
+            
+            if (checkbox && checkbox.checked !== this.dataTransforms[transformName]) {
+                console.warn(`Transform state mismatch detected for ${transformName}`);
+                needsSync = true;
+                // Sync to DOM state (user interaction takes precedence)
+                this.dataTransforms[transformName] = checkbox.checked;
+            }
+        });
+        
+        if (needsSync) {
+            console.log('Syncing state to match DOM...');
+            this.saveState();
+            this.renderOutputPreview();
+        }
+        
+        return needsSync;
+    }
 }
 
 // Add animations
@@ -4684,6 +5136,12 @@ if (document.readyState === 'loading') {
 
 // Force render JSON views when DOM is ready and if there's data (legacy fallback)
 document.addEventListener('DOMContentLoaded', () => {
+    // Immediately clear all data transform checkboxes to prevent browser cache issues
+    const namemergeCheckbox = document.getElementById('namemergeTransform');
+    if (namemergeCheckbox) {
+        namemergeCheckbox.checked = false;
+    }
+    
     setTimeout(() => {
         if (emojiPasta && emojiPasta.originalData.length > 0) {
             emojiPasta.renderOriginalStructure();

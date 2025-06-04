@@ -81,6 +81,7 @@
                 <button class="tool-tab" data-tab="category-customization">📁 Categories</button>
                 <button class="tool-tab" data-tab="search-terms">🏷️ Search Terms</button>
                 <button class="tool-tab" data-tab="removed-emojis">🗑️ Removed Emojis</button>
+                <button class="tool-tab" data-tab="data-transforms">🤖 Data Transforms</button>
             </div>
         </div>
 
@@ -381,6 +382,67 @@ word1, word2, word3" rows="6"></textarea>
                         <div class="tool-panel-content">
                             <div class="removed-manager" id="removedManager">
                                 <div class="no-data">No emojis removed</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Transforms Tab -->
+                    <div class="tool-panel" id="data-transforms-tab">
+                        <div class="tool-panel-header">
+                            <h2>Data Transforms 🤖</h2>
+                            <div class="transforms-controls">
+                                <div class="transforms-actions">
+                                    <button id="resetTransforms" class="btn btn-small btn-secondary" title="Reset all transforms">🔄 Reset All</button>
+                                </div>
+                                <span class="transforms-counter" id="transformsCounter">0 transforms active</span>
+                            </div>
+                        </div>
+                        <div class="tool-panel-content">
+                            <div class="transforms-manager" id="transformsManager">
+                                <div class="transforms-list">
+                                    <!-- Name Merge Transform -->
+                                    <div class="transform-item">
+                                        <div class="transform-header">
+                                            <label class="transform-label">
+                                                <input type="checkbox" id="namemergeTransform" class="transform-checkbox">
+                                                <span class="transform-title">Name Merge</span>
+                                            </label>
+                                            <span class="transform-status" id="nameMergeStatus">Inactive</span>
+                                        </div>
+                                        <div class="transform-description">
+                                            Merges the <code>name</code> field into <code>short_names</code> array and removes the original <code>name</code> field. 
+                                            Automatically removes duplicates and redundant search terms (e.g., keeps "hash key" but removes "hash" since it's a substring).
+                                        </div>
+                                        <div class="transform-preview" id="nameMergePreview" style="display: none;">
+                                            <div class="preview-header">
+                                                <strong>🔍 Preview (Current Emoji)</strong>
+                                            </div>
+                                            <div class="preview-content">
+                                                <div class="preview-before">
+                                                    <strong>Before:</strong>
+                                                    <div class="preview-code" id="nameMergeBefore">
+                                                        <!-- Preview content -->
+                                                    </div>
+                                                </div>
+                                                <div class="preview-arrow">→</div>
+                                                <div class="preview-after">
+                                                    <strong>After:</strong>
+                                                    <div class="preview-code" id="nameMergeAfter">
+                                                        <!-- Preview content -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="transforms-info">
+                                    <div class="info-icon">ℹ️</div>
+                                    <div class="info-text">
+                                        Data transforms are applied <strong>after</strong> field selection, renaming, and all other processing. 
+                                        They modify the structure of your data before export.
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
