@@ -4633,7 +4633,4 @@ select:focus {
 
 .transforms-controls {
     padding: 1rem;
-    background: var(--bg-tertiary);
-    border-radius: 8px;
-    margin-bottom: 1rem;
 }

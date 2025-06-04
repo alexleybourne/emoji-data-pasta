@@ -26,11 +26,10 @@ class EmojiDataPasta {
         
         // Settings and preferences
         this.settings = {
-            saveSettings: true,
             includeEmptyFields: true,
             prettifyJson: true,
-            includeStats: true,
             applyFieldRenames: true,
+            saveSettings: true,
             filename: 'emoji-edited.json'
         };
         
@@ -164,10 +163,6 @@ class EmojiDataPasta {
         });
         document.getElementById('prettifyJson').addEventListener('change', (e) => {
             this.settings.prettifyJson = e.target.checked;
-            this.updateFileSizePreview();
-        });
-        document.getElementById('includeStats').addEventListener('change', (e) => {
-            this.settings.includeStats = e.target.checked;
             this.updateFileSizePreview();
         });
         document.getElementById('applyFieldRenames').addEventListener('change', (e) => {
@@ -572,6 +567,8 @@ class EmojiDataPasta {
             categoryMappings: 0,
             excludedCategories: 0,
             customSearchTerms: 0,
+            fieldRenames: 0,
+            dataTransforms: 0,
             details: []
         };
         
@@ -628,19 +625,46 @@ class EmojiDataPasta {
             this.appliedChanges.details.push(`🚫 Excluded ${settings.excludedCategories.length} categories`);
         }
 
-        // Detect and apply custom search terms from uploaded data
-        if (this.uploadedEmojiData) {
-            console.log('🔍 Detecting custom search terms from uploaded data...');
-            await this.detectCustomSearchTermsFromData(this.uploadedEmojiData);
-        } else {
-            // Fallback to original detection method
-            await this.detectCustomSearchTerms();
+        // Apply field renames
+        if (settings.fieldRenames && Array.isArray(settings.fieldRenames)) {
+            this.fieldRenames = new Map(settings.fieldRenames);
+            this.appliedChanges.fieldRenames = settings.fieldRenames.length;
+            this.appliedChanges.details.push(`🏷️ Applied ${settings.fieldRenames.length} field renames`);
         }
-        
-        if (this.customSearchTerms.size > 0) {
-            this.appliedChanges.customSearchTerms = this.customSearchTerms.size;
+
+        // Apply data transforms
+        if (settings.dataTransforms) {
+            this.dataTransforms = { ...this.dataTransforms, ...settings.dataTransforms };
+            const activeTransformCount = Object.values(settings.dataTransforms).filter(enabled => enabled).length;
+            this.appliedChanges.dataTransforms = activeTransformCount;
+            this.appliedChanges.details.push(`⚙️ Applied ${activeTransformCount} data transforms`);
+            
+            // Force sync the checkboxes and update UI
+            this.forceDataTransformCheckboxSync();
+            this.updateTransformsCounter();
+        }
+
+        // Apply custom search terms from settings if present
+        if (settings.customSearchTerms && Array.isArray(settings.customSearchTerms)) {
+            this.customSearchTerms = new Map(settings.customSearchTerms);
             const totalTerms = Array.from(this.customSearchTerms.values()).reduce((sum, terms) => sum + terms.length, 0);
-            this.appliedChanges.details.push(`🏷️ Found ${this.customSearchTerms.size} emojis with ${totalTerms} custom search terms`);
+            this.appliedChanges.customSearchTerms = this.customSearchTerms.size;
+            this.appliedChanges.details.push(`🏷️ Loaded ${this.customSearchTerms.size} emojis with ${totalTerms} custom search terms from settings`);
+        } else {
+            // Detect and apply custom search terms from uploaded data if not in settings
+            if (this.uploadedEmojiData) {
+                console.log('🔍 Detecting custom search terms from uploaded data...');
+                await this.detectCustomSearchTermsFromData(this.uploadedEmojiData);
+            } else {
+                // Fallback to original detection method
+                await this.detectCustomSearchTerms();
+            }
+            
+            if (this.customSearchTerms.size > 0) {
+                this.appliedChanges.customSearchTerms = this.customSearchTerms.size;
+                const totalTerms = Array.from(this.customSearchTerms.values()).reduce((sum, terms) => sum + terms.length, 0);
+                this.appliedChanges.details.push(`🏷️ Detected ${this.customSearchTerms.size} emojis with ${totalTerms} custom search terms`);
+            }
         }
         
         // Update display
@@ -1896,7 +1920,6 @@ class EmojiDataPasta {
         document.getElementById('saveSettings').checked = this.settings.saveSettings;
         document.getElementById('includeEmptyFields').checked = this.settings.includeEmptyFields;
         document.getElementById('prettifyJson').checked = this.settings.prettifyJson;
-        document.getElementById('includeStats').checked = this.settings.includeStats;
         document.getElementById('applyFieldRenames').checked = this.settings.applyFieldRenames;
         document.getElementById('filename').value = this.settings.filename;
         
@@ -2008,7 +2031,7 @@ class EmojiDataPasta {
         // Always return as simple array, no object wrapping option
         let finalData = processedData;
 
-        // Add minimal settings if enabled
+        // Add settings if enabled
         if (this.settings.saveSettings) {
             // Helper function to convert emoji to character
             const getEmojiChar = (emoji) => {
@@ -2020,34 +2043,48 @@ class EmojiDataPasta {
                 }
             };
             
-            // Minimal settings - only what's needed for restoration
-            const minimalSettings = {};
+            // Settings to save
+            const settingsToSave = {};
             
             // Only include data if it exists/differs from defaults
             const removedFields = Object.keys(this.fieldSchema).filter(f => !this.selectedFields.has(f));
             if (removedFields.length > 0) {
-                minimalSettings.fieldsRemoved = removedFields;
+                settingsToSave.fieldsRemoved = removedFields;
             }
             
             if (this.removedEmojis.size > 0) {
-                minimalSettings.removedEmojis = Array.from(this.removedEmojis)
+                settingsToSave.removedEmojis = Array.from(this.removedEmojis)
                     .map(index => getEmojiChar(this.originalData[index]))
                     .filter(emoji => emoji);
             }
             
             if (this.categoryMappings.size > 0) {
-                minimalSettings.categoryMappings = Array.from(this.categoryMappings.entries());
+                settingsToSave.categoryMappings = Array.from(this.categoryMappings.entries());
             }
             
             if (this.excludedCategories.size > 0) {
-                minimalSettings.excludedCategories = Array.from(this.excludedCategories);
+                settingsToSave.excludedCategories = Array.from(this.excludedCategories);
+            }
+
+            if (this.customSearchTerms.size > 0) {
+                settingsToSave.customSearchTerms = Array.from(this.customSearchTerms.entries());
+            }
+
+            if (this.fieldRenames.size > 0) {
+                settingsToSave.fieldRenames = Array.from(this.fieldRenames.entries());
+            }
+
+            // Save data transforms if any are enabled
+            const activeTransforms = Object.entries(this.dataTransforms).filter(([_, enabled]) => enabled);
+            if (activeTransforms.length > 0) {
+                settingsToSave.dataTransforms = this.dataTransforms;
             }
 
             // Only add settings if there's actually something to save
-            if (Object.keys(minimalSettings).length > 0) {
+            if (Object.keys(settingsToSave).length > 0) {
                 finalData = {
                     data: processedData,
-                    emoji_data_pasta_settings: minimalSettings
+                    emoji_data_pasta_settings: settingsToSave
                 };
             }
         }
@@ -2483,7 +2520,7 @@ class EmojiDataPasta {
         this.settings = {
             includeEmptyFields: true,
             prettifyJson: true,
-            includeStats: true,
+            applyFieldRenames: true,
             saveSettings: true,
             filename: 'emoji-edited.json'
         };
@@ -4973,17 +5010,54 @@ class EmojiDataPasta {
     
     deduplicateSearchTerms(terms) {
         // First normalize all terms to replace underscores and hyphens with spaces
-        const normalizedTerms = terms.map(term => term.replace(/[_-]/g, ' '));
+        const normalizedTerms = terms.map(term => term.replace(/[_-]/g, ' ').trim());
         
         // Helper function to normalize terms for comparison 
         const normalizeForComparison = (term) => {
-            return term.toLowerCase().replace(/[_-]/g, ' ');
+            return term.toLowerCase().replace(/[_-]/g, ' ').trim();
+        };
+        
+        // Helper function to calculate similarity between two terms
+        const calculateSimilarity = (term1, term2) => {
+            const words1 = term1.split(/\s+/);
+            const words2 = term2.split(/\s+/);
+            
+            // Count common words
+            let commonWords = 0;
+            const minLength = Math.min(words1.length, words2.length);
+            const maxLength = Math.max(words1.length, words2.length);
+            
+            for (const word1 of words1) {
+                for (const word2 of words2) {
+                    // Exact match
+                    if (word1 === word2) {
+                        commonWords++;
+                        break;
+                    }
+                    // Handle simple plural/singular (e.g., "woman" vs "women", "child" vs "children")
+                    if ((word1.endsWith('s') && word1.slice(0, -1) === word2) ||
+                        (word2.endsWith('s') && word2.slice(0, -1) === word1) ||
+                        (word1 === 'women' && word2 === 'woman') ||
+                        (word1 === 'woman' && word2 === 'women') ||
+                        (word1 === 'children' && word2 === 'child') ||
+                        (word1 === 'child' && word2 === 'children') ||
+                        (word1 === 'people' && word2 === 'person') ||
+                        (word1 === 'person' && word2 === 'people')) {
+                        commonWords++;
+                        break;
+                    }
+                }
+            }
+            
+            // Return similarity ratio (0-1)
+            return commonWords / maxLength;
         };
         
         // Convert all terms with normalized versions for comparison, but keep original casing
         const termPairs = normalizedTerms.map(term => ({
             original: term,
-            normalized: normalizeForComparison(term)
+            normalized: normalizeForComparison(term),
+            words: normalizeForComparison(term).split(/\s+/).filter(word => word.length > 0)
         }));
         
         // Remove exact duplicates first (including _ vs - vs space equivalents)
@@ -4997,17 +5071,46 @@ class EmojiDataPasta {
             }
         }
         
-        // Remove substring redundancies (keep longer terms)
-        const finalTerms = [];
+        // Remove very similar terms (high similarity but not identical)
+        const similarityThreshold = 0.85; // 85% similarity threshold
+        let filteredForSimilarity = [];
         
         for (let i = 0; i < uniqueTerms.length; i++) {
             const currentTerm = uniqueTerms[i];
+            let isRedundant = false;
+            
+            for (let j = 0; j < filteredForSimilarity.length; j++) {
+                const existingTerm = filteredForSimilarity[j];
+                const similarity = calculateSimilarity(currentTerm.normalized, existingTerm.normalized);
+                
+                if (similarity >= similarityThreshold) {
+                    // Keep the longer or more descriptive term
+                    if (currentTerm.normalized.length > existingTerm.normalized.length) {
+                        // Replace existing with current (longer)
+                        filteredForSimilarity[j] = currentTerm;
+                    }
+                    // else keep existing term
+                    isRedundant = true;
+                    break;
+                }
+            }
+            
+            if (!isRedundant) {
+                filteredForSimilarity.push(currentTerm);
+            }
+        }
+        
+        // Remove substring redundancies (keep longer terms)
+        let filteredTerms = [];
+        
+        for (let i = 0; i < filteredForSimilarity.length; i++) {
+            const currentTerm = filteredForSimilarity[i];
             let isSubstring = false;
             
             // Check if current term is a substring of any other term
-            for (let j = 0; j < uniqueTerms.length; j++) {
+            for (let j = 0; j < filteredForSimilarity.length; j++) {
                 if (i !== j) {
-                    const otherTerm = uniqueTerms[j];
+                    const otherTerm = filteredForSimilarity[j];
                     
                     // If current term is shorter and is contained in the other term
                     if (currentTerm.normalized.length < otherTerm.normalized.length && 
@@ -5020,8 +5123,74 @@ class EmojiDataPasta {
             
             // Only keep terms that are not substrings of longer terms
             if (!isSubstring) {
-                finalTerms.push(currentTerm.original);
+                filteredTerms.push(currentTerm);
             }
+        }
+        
+        // Now handle word-level deduplication
+        // For each term, remove words that appear in other longer terms
+        const finalTerms = [];
+        
+        for (let i = 0; i < filteredTerms.length; i++) {
+            const currentTerm = filteredTerms[i];
+            let remainingWords = [...currentTerm.words];
+            
+            // Check against all other terms
+            for (let j = 0; j < filteredTerms.length; j++) {
+                if (i !== j) {
+                    const otherTerm = filteredTerms[j];
+                    
+                    // If the other term is longer, remove duplicate words from current term
+                    if (otherTerm.words.length > currentTerm.words.length) {
+                        remainingWords = remainingWords.filter(word => {
+                            // Keep words that don't appear in the longer term
+                            return !otherTerm.words.includes(word);
+                        });
+                    }
+                }
+            }
+            
+            // Only keep terms that have meaningful words left
+            // Filter out very short words (1-2 characters) or common words that don't add value
+            const meaningfulWords = remainingWords.filter(word => 
+                word.length > 2 || 
+                ['ok', 'no', 'up', 'on', 'in', 'of', 'to', 'my', 'by'].includes(word)
+            );
+            
+            if (meaningfulWords.length > 0) {
+                // Reconstruct the term with remaining words in original order
+                const originalWords = currentTerm.normalized.split(/\s+/);
+                const reconstructed = originalWords.filter(word => remainingWords.includes(word)).join(' ');
+                
+                if (reconstructed.trim().length > 0) {
+                    finalTerms.push(reconstructed.trim());
+                }
+            } else if (currentTerm.words.length <= 2) {
+                // Keep very short terms (1-2 words) even if they have overlaps, unless they're completely contained
+                let isCompletelyContained = false;
+                for (let j = 0; j < filteredTerms.length; j++) {
+                    if (i !== j) {
+                        const otherTerm = filteredTerms[j];
+                        if (otherTerm.words.length > currentTerm.words.length &&
+                            currentTerm.words.every(word => otherTerm.words.includes(word))) {
+                            isCompletelyContained = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!isCompletelyContained) {
+                    finalTerms.push(currentTerm.original);
+                }
+            }
+        }
+        
+        // If we ended up with no terms, keep the longest original term
+        if (finalTerms.length === 0 && filteredTerms.length > 0) {
+            const longestTerm = filteredTerms.reduce((longest, current) => 
+                current.normalized.length > longest.normalized.length ? current : longest
+            );
+            finalTerms.push(longestTerm.original);
         }
         
         return finalTerms;
