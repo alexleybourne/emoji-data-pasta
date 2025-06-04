@@ -15,8 +15,7 @@ class EmojiDataPasta {
         this.originalCategories = new Map();
         this.selectedCategories = new Set();
         this.customSearchTerms = new Map();
-        this.currentPreset = '';
-        this.customPreset = [];
+        this.fieldRenames = new Map(); // Maps original field names to renamed field names
         
         // Initialize presets
         this.presets = this.getFieldPresets();
@@ -24,12 +23,13 @@ class EmojiDataPasta {
         // Initialize field descriptions
         this.fieldDescriptions = this.getFieldDescriptions();
         
-        // Settings
+        // Settings and preferences
         this.settings = {
+            saveSettings: true,
             includeEmptyFields: true,
             prettifyJson: true,
             includeStats: true,
-            saveSettings: true,
+            applyFieldRenames: true,
             filename: 'emoji-edited.json'
         };
         
@@ -157,6 +157,10 @@ class EmojiDataPasta {
         });
         document.getElementById('includeStats').addEventListener('change', (e) => {
             this.settings.includeStats = e.target.checked;
+            this.updateFileSizePreview();
+        });
+        document.getElementById('applyFieldRenames').addEventListener('change', (e) => {
+            this.settings.applyFieldRenames = e.target.checked;
             this.updateFileSizePreview();
         });
         document.getElementById('filename').addEventListener('input', (e) => {
@@ -1241,7 +1245,10 @@ class EmojiDataPasta {
             <div class="field-group">
                 <div class="field-group-header">
                     <div class="field-group-title">Available Fields</div>
-                    <div class="field-group-count">${Object.keys(this.fieldSchema).length} fields</div>
+                    <div class="field-group-count">
+                        ${Object.keys(this.fieldSchema).length} fields
+                        ${this.fieldRenames.size > 0 ? ` • ${this.fieldRenames.size} renamed` : ''}
+                    </div>
                 </div>
                 <div class="field-list">
                     ${topLevelFields.map(field => {
@@ -1259,7 +1266,11 @@ class EmojiDataPasta {
                                        ${isSelected ? 'checked' : ''}
                                        onchange="emojiPasta.toggleField('${field}')">
                                 ${hasSubFields ? `<div class="field-expand-icon ${isExpanded ? 'expanded' : ''}" onclick="emojiPasta.toggleFieldExpansion('${field}')">${isExpanded ? '−' : '+'}</div>` : ''}
-                                <div class="field-name">${field}</div>
+                                <div class="field-name">
+                                    <span class="field-original-name">${field}</span>
+                                    ${this.fieldRenames.has(field) ? `<span class="field-arrow">→</span><span class="field-renamed">${this.fieldRenames.get(field)}</span>` : ''}
+                                </div>
+                                <button class="field-rename-btn" onclick="event.stopPropagation(); emojiPasta.showFieldRenameModal('${field}')" title="Rename field">✏️</button>
                                 <div class="field-info-icon" data-field="${field}">i</div>
                                 <div class="field-type">${fieldInfo.type}</div>
                                 <div class="field-usage">${usagePercent}%</div>
@@ -1281,7 +1292,11 @@ class EmojiDataPasta {
                                                id="field-${subField}"
                                                ${subIsSelected ? 'checked' : ''}
                                                onchange="emojiPasta.toggleField('${subField}')">
-                                        <div class="field-name">${subFieldName}</div>
+                                        <div class="field-name">
+                                            <span class="field-original-name">${subFieldName}</span>
+                                            ${this.fieldRenames.has(subField) ? `<span class="field-arrow">→</span><span class="field-renamed">${this.fieldRenames.get(subField)}</span>` : ''}
+                                        </div>
+                                        <button class="field-rename-btn" onclick="event.stopPropagation(); emojiPasta.showFieldRenameModal('${subField}')" title="Rename field">✏️</button>
                                         <div class="field-info-icon" data-field="${subField}">i</div>
                                         <div class="field-type">${subFieldInfo.type}</div>
                                         <div class="field-usage">${subUsagePercent}%</div>
@@ -1293,6 +1308,13 @@ class EmojiDataPasta {
                         return html;
                     }).join('')}
                 </div>
+                ${this.fieldRenames.size > 0 ? `
+                <div class="field-management-actions" style="margin-top: 1rem; text-align: center;">
+                    <button class="btn btn-secondary btn-small" onclick="app.clearAllFieldRenames()">
+                        Clear All Renames (${this.fieldRenames.size})
+                    </button>
+                </div>
+                ` : ''}
             </div>
         `;
     }
@@ -1473,12 +1495,29 @@ class EmojiDataPasta {
         thead.innerHTML = `
             <tr>
                 ${displayFields.map(field => {
-                    const fieldName = field === 'emoji' ? 'Emoji' : 
-                                     field === 'short_names' ? 'Short Names' :
+                    if (field === 'emoji') {
+                        return '<th>Emoji</th>';
+                    }
+                    
+                    // Get the display name for the header
+                    const outputFieldName = this.getOutputFieldName(field);
+                    const isRenamed = this.settings.applyFieldRenames && this.fieldRenames.has(field);
+                    
+                    // Create display name
+                    let displayName;
+                    if (isRenamed) {
+                        // Show renamed field name with original in tooltip
+                        displayName = outputFieldName;
+                    } else {
+                        // Use prettified original name
+                        displayName = field === 'short_names' ? 'Short Names' :
                                      field === 'sort_order' ? 'Sort Order' :
                                      field === 'added_in' ? 'Added In' :
                                      field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    return `<th>${fieldName}</th>`;
+                    }
+                    
+                    const tooltip = isRenamed ? `Renamed from: ${field}` : '';
+                    return `<th title="${tooltip}">${displayName}${isRenamed ? ' ✏️' : ''}</th>`;
                 }).join('')}
             </tr>
         `;
@@ -1490,6 +1529,11 @@ class EmojiDataPasta {
             // Get actual emoji index in original data
             const originalIndex = this.originalData.indexOf(originalEmoji);
             const filteredEmoji = this.browserFilteredData[originalIndex];
+            
+            // Skip if this emoji was filtered out (e.g., removed or excluded by category)
+            if (!filteredEmoji) {
+                return ''; // Return empty string to skip this row
+            }
             
             // Try to render actual emoji
             let emojiChar = '📝';
@@ -1512,7 +1556,10 @@ class EmojiDataPasta {
                     return `<td style="font-size: 1.2em; text-align: center;">${emojiChar}</td>`;
                 }
                 
-                const value = filteredEmoji[field];
+                // Get the correct field name to look up in the filtered data
+                const outputFieldName = this.getOutputFieldName(field);
+                const value = filteredEmoji[outputFieldName];
+                
                 if (value === undefined || value === null) {
                     return '<td style="color: var(--text-tertiary); font-style: italic;">—</td>';
                 }
@@ -1630,9 +1677,12 @@ class EmojiDataPasta {
         
         // Apply field selections
         for (const fieldName of this.selectedFields) {
+            // Get the field name to use in output (renamed or original)
+            const outputFieldName = (this.settings.applyFieldRenames && this.fieldRenames.get(fieldName)) || fieldName;
+            
             if (fieldName === 'category' && newCategory !== originalEmoji.category) {
                 // Use the mapped category instead of original
-                filtered[fieldName] = newCategory;
+                filtered[outputFieldName] = newCategory;
             } else if (fieldName === 'short_names' && originalEmoji.hasOwnProperty(fieldName)) {
                 // Merge original short_names with custom search terms
                 const originalShortNames = originalEmoji[fieldName] || [];
@@ -1642,7 +1692,7 @@ class EmojiDataPasta {
                 if (!this.settings.includeEmptyFields && mergedTerms.length === 0) {
                     continue;
                 }
-                filtered[fieldName] = mergedTerms;
+                filtered[outputFieldName] = mergedTerms;
             } else if (originalEmoji.hasOwnProperty(fieldName)) {
                 const value = originalEmoji[fieldName];
                 
@@ -1654,7 +1704,9 @@ class EmojiDataPasta {
                         for (const subField of this.selectedFields) {
                             if (subField.startsWith('skin_variations.') && skinData.hasOwnProperty(subField.split('.')[1])) {
                                 const subFieldName = subField.split('.')[1];
-                                filteredSkinData[subFieldName] = skinData[subFieldName];
+                                // Apply renames to sub-fields as well
+                                const outputSubFieldName = (this.settings.applyFieldRenames && this.fieldRenames.get(subField)) || subFieldName;
+                                filteredSkinData[outputSubFieldName] = skinData[subFieldName];
                             }
                         }
                         if (Object.keys(filteredSkinData).length > 0) {
@@ -1662,13 +1714,13 @@ class EmojiDataPasta {
                         }
                     }
                     if (Object.keys(filteredVariations).length > 0) {
-                        filtered[fieldName] = filteredVariations;
+                        filtered[outputFieldName] = filteredVariations;
                     }
                 } else if (!this.settings.includeEmptyFields && (value === null || value === undefined || value === '')) {
                     // Skip empty fields if setting is disabled
                     continue;
                 } else {
-                    filtered[fieldName] = value;
+                    filtered[outputFieldName] = value;
                 }
             }
         }
@@ -1761,7 +1813,17 @@ class EmojiDataPasta {
         document.getElementById('includeEmptyFields').checked = this.settings.includeEmptyFields;
         document.getElementById('prettifyJson').checked = this.settings.prettifyJson;
         document.getElementById('includeStats').checked = this.settings.includeStats;
+        document.getElementById('applyFieldRenames').checked = this.settings.applyFieldRenames;
         document.getElementById('filename').value = this.settings.filename;
+        
+        // Update field renames count display
+        const fieldRenamesCount = document.getElementById('fieldRenamesCount');
+        if (this.fieldRenames.size > 0) {
+            fieldRenamesCount.textContent = `${this.fieldRenames.size} field(s) will be renamed`;
+            fieldRenamesCount.style.display = 'block';
+        } else {
+            fieldRenamesCount.style.display = 'none';
+        }
         
         // Calculate and show file size comparison
         this.updateFileSizePreview();
@@ -2242,6 +2304,11 @@ class EmojiDataPasta {
                 this.customSearchTerms = new Map(state.customSearchTerms);
             }
             
+            // Restore field renames
+            if (state.fieldRenames) {
+                this.fieldRenames = new Map(state.fieldRenames);
+            }
+            
             // Note: selectedCategories is not persisted as it's a UI state that should reset
             
             console.log('Loaded persisted state');
@@ -2262,6 +2329,7 @@ class EmojiDataPasta {
                 categoryMappings: Array.from(this.categoryMappings.entries()),
                 excludedCategories: Array.from(this.excludedCategories),
                 customSearchTerms: Array.from(this.customSearchTerms.entries()),
+                fieldRenames: Array.from(this.fieldRenames.entries()),
                 fieldSchema: this.fieldSchema,
                 settings: this.settings,
                 timestamp: Date.now()
@@ -4348,6 +4416,222 @@ class EmojiDataPasta {
             button.style.borderColor = '';
             button.style.color = '';
         }, 2000);
+    }
+
+    showFieldRenameModal(fieldName) {
+        this.currentFieldBeingRenamed = fieldName;
+        
+        // Populate modal with field info
+        document.getElementById('currentFieldName').textContent = fieldName;
+        
+        // Check if field already has a rename
+        const existingRename = this.fieldRenames.get(fieldName);
+        const existingInfo = document.getElementById('fieldRenameExistingInfo');
+        const removeBtn = document.getElementById('removeRenameBtn');
+        
+        if (existingRename) {
+            document.getElementById('currentRenamedValue').textContent = existingRename;
+            document.getElementById('newFieldName').value = existingRename;
+            existingInfo.style.display = 'block';
+            removeBtn.style.display = 'inline-flex';
+        } else {
+            document.getElementById('newFieldName').value = '';
+            existingInfo.style.display = 'none';
+            removeBtn.style.display = 'none';
+        }
+        
+        // Generate suggestions
+        this.generateFieldSuggestions(fieldName);
+        
+        // Show modal
+        document.getElementById('fieldRenameModal').classList.add('active');
+        
+        // Focus input
+        setTimeout(() => {
+            document.getElementById('newFieldName').focus();
+        }, 100);
+        
+        // Setup event listeners
+        this.setupFieldRenameModalListeners();
+    }
+    
+    generateFieldSuggestions(fieldName) {
+        const suggestionsContainer = document.getElementById('fieldSuggestions');
+        
+        // Common field mappings
+        const commonMappings = {
+            'name': ['n', 'nm'],
+            'category': ['c', 'cat'],
+            'unified': ['u', 'uni'],
+            'non_qualified': ['nq', 'non_qual'],
+            'docomo': ['d', 'dcm'],
+            'au': ['a'],
+            'softbank': ['s', 'sb'],
+            'google': ['g', 'ggl'],
+            'image': ['i', 'img'],
+            'sheet_x': ['x', 'sx'],
+            'sheet_y': ['y', 'sy'],
+            'short_name': ['sn', 'short'],
+            'short_names': ['sns', 'shorts'],
+            'text': ['t', 'txt'],
+            'texts': ['ts', 'txts'],
+            'has_img_apple': ['apple', 'apl'],
+            'has_img_google': ['google', 'ggl'],
+            'has_img_twitter': ['twitter', 'twt'],
+            'has_img_facebook': ['facebook', 'fb'],
+            'obsoletes': ['obs', 'obsolete'],
+            'obsoleted_by': ['obs_by', 'replaced']
+        };
+        
+        // Get base field name (without dots)
+        const baseField = fieldName.split('.').pop();
+        
+        // Generate suggestions
+        let suggestions = [];
+        
+        // Add common mappings if available
+        if (commonMappings[baseField]) {
+            suggestions.push(...commonMappings[baseField]);
+        }
+        
+        // Add single letter suggestion
+        if (baseField.length > 1) {
+            suggestions.push(baseField.charAt(0));
+        }
+        
+        // Add abbreviated forms
+        if (baseField.includes('_')) {
+            const parts = baseField.split('_');
+            suggestions.push(parts.map(p => p.charAt(0)).join(''));
+            suggestions.push(parts.map(p => p.substring(0, 2)).join(''));
+        }
+        
+        // Add vowel-less version for longer names
+        if (baseField.length > 3) {
+            const consonants = baseField.replace(/[aeiou]/gi, '');
+            if (consonants.length > 0 && consonants.length < baseField.length) {
+                suggestions.push(consonants.toLowerCase());
+            }
+        }
+        
+        // Remove duplicates and filter out existing renames
+        suggestions = [...new Set(suggestions)].filter(s => 
+            s && s !== fieldName && s !== baseField && 
+            !Array.from(this.fieldRenames.values()).includes(s)
+        );
+        
+        // Create suggestion tags
+        suggestionsContainer.innerHTML = suggestions.slice(0, 8).map(suggestion => 
+            `<div class="suggestion-tag" onclick="app.applySuggestion('${suggestion}')">${suggestion}</div>`
+        ).join('');
+    }
+    
+    applySuggestion(suggestion) {
+        document.getElementById('newFieldName').value = suggestion;
+    }
+    
+    setupFieldRenameModalListeners() {
+        // Close button
+        document.getElementById('closeFieldRename').onclick = () => this.hideFieldRenameModal();
+        
+        // Enter key to confirm
+        const input = document.getElementById('newFieldName');
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                this.confirmFieldRename();
+            } else if (e.key === 'Escape') {
+                this.hideFieldRenameModal();
+            }
+        };
+        
+        // Click outside to close
+        setTimeout(() => {
+            document.addEventListener('click', this.closeFieldRenameOnClickOutside);
+        }, 100);
+    }
+    
+    closeFieldRenameOnClickOutside = (e) => {
+        const modal = document.getElementById('fieldRenameModal');
+        if (e.target === modal) {
+            this.hideFieldRenameModal();
+        }
+    }
+    
+    hideFieldRenameModal() {
+        document.getElementById('fieldRenameModal').classList.remove('active');
+        document.removeEventListener('click', this.closeFieldRenameOnClickOutside);
+        this.currentFieldBeingRenamed = null;
+    }
+    
+    confirmFieldRename() {
+        const newName = document.getElementById('newFieldName').value.trim();
+        const originalField = this.currentFieldBeingRenamed;
+        
+        if (!newName) {
+            this.showMessage('Please enter a new field name', 'error');
+            return;
+        }
+        
+        // Validate field name (basic validation)
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newName)) {
+            this.showMessage('Field name must start with a letter or underscore and contain only letters, numbers, and underscores', 'error');
+            return;
+        }
+        
+        // Check if new name conflicts with existing field names
+        if (Object.keys(this.fieldSchema).includes(newName)) {
+            this.showMessage(`Field name "${newName}" already exists in the original data`, 'error');
+            return;
+        }
+        
+        // Check if new name conflicts with other renames
+        const existingRenames = Array.from(this.fieldRenames.values());
+        if (existingRenames.includes(newName) && this.fieldRenames.get(originalField) !== newName) {
+            this.showMessage(`Field name "${newName}" is already used by another renamed field`, 'error');
+            return;
+        }
+        
+        // Apply the rename
+        this.fieldRenames.set(originalField, newName);
+        
+        this.showMessage(`Field "${originalField}" renamed to "${newName}"`, 'success');
+        this.hideFieldRenameModal();
+        this.renderFieldManager();
+        this.renderOutputPreview();
+        this.saveState();
+    }
+    
+    removeFieldRename() {
+        const originalField = this.currentFieldBeingRenamed;
+        
+        if (this.fieldRenames.has(originalField)) {
+            this.fieldRenames.delete(originalField);
+            this.showMessage(`Removed rename for field "${originalField}"`, 'success');
+            this.hideFieldRenameModal();
+            this.renderFieldManager();
+            this.renderOutputPreview();
+            this.saveState();
+        }
+    }
+
+    clearAllFieldRenames() {
+        if (this.fieldRenames.size === 0) {
+            this.showMessage('No field renames to clear', 'info');
+            return;
+        }
+        
+        const count = this.fieldRenames.size;
+        this.fieldRenames.clear();
+        
+        this.showMessage(`Cleared ${count} field rename(s)`, 'success');
+        this.renderFieldManager();
+        this.renderOutputPreview();
+        this.saveState();
+    }
+
+    getOutputFieldName(originalFieldName) {
+        // Return the renamed field name if renaming is enabled and a rename exists, otherwise return original
+        return (this.settings.applyFieldRenames && this.fieldRenames.get(originalFieldName)) || originalFieldName;
     }
 }
 

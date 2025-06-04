@@ -438,6 +438,18 @@ word1, word2, word3" rows="6"></textarea>
 
                 <div class="setting-group">
                     <label>
+                        <input type="checkbox" id="applyFieldRenames" checked>
+                        <strong>Apply Field Renames</strong>
+                    </label>
+                    <div class="setting-description">
+                        Use your custom field names in the output instead of the original field names. 
+                        You can rename fields in the Fields tab for shorter, more efficient field names (e.g., "n" instead of "name").
+                        <span id="fieldRenamesCount" style="display: none; margin-top: 0.5rem; color: var(--accent-primary); font-weight: 600;"></span>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label>
                         <input type="checkbox" id="prettifyJson" checked>
                         <strong>Pretty Format JSON</strong>
                     </label>
@@ -617,6 +629,47 @@ word1, word2, word3" rows="6"></textarea>
                 </div>
                 <div class="category-emojis-footer">
                     <span id="categoryEmojisFooter">Click any emoji to select it in the main interface</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Field Rename Modal -->
+        <div class="field-rename-modal" id="fieldRenameModal">
+            <div class="field-rename-content">
+                <div class="field-rename-header">
+                    <h3>Rename Field</h3>
+                    <button id="closeFieldRename" class="btn btn-small">×</button>
+                </div>
+                <div class="field-rename-body">
+                    <div class="field-rename-info">
+                        <div class="field-rename-current">
+                            <span class="field-rename-current-label">Current name:</span>
+                            <span class="field-rename-current-value" id="currentFieldName"></span>
+                        </div>
+                        <div id="fieldRenameExistingInfo" style="display: none;">
+                            <div class="field-rename-current">
+                                <span class="field-rename-current-label">Currently renamed to:</span>
+                                <span class="field-renamed" id="currentRenamedValue"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="field-rename-input-group">
+                        <label for="newFieldName">New field name:</label>
+                        <input type="text" id="newFieldName" placeholder="Enter new field name (e.g., 'n' for 'name')">
+                    </div>
+                    
+                    <div class="field-rename-suggestions">
+                        <h4>Quick suggestions:</h4>
+                        <div class="suggestion-tags" id="fieldSuggestions">
+                            <!-- Suggestions will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+                <div class="field-rename-actions">
+                    <button class="btn btn-secondary" onclick="app.hideFieldRenameModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="app.removeFieldRename()" id="removeRenameBtn" style="display: none;">Remove Rename</button>
+                    <button class="btn btn-primary" onclick="app.confirmFieldRename()">Apply Rename</button>
                 </div>
             </div>
         </div>
