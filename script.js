@@ -1431,6 +1431,14 @@ class EmojiDataPasta {
             // Remove category field from the emoji for the grouped structure
             const { [categoryFieldName]: removed, ...emojiWithoutCategory } = filteredEmoji;
             
+            // Apply Order Emojis transform for preview purposes (remove sort_order field)
+            if (this.dataTransforms.orderEmojis && this.selectedFields.has('sort_order')) {
+                const sortOrderField = this.getOutputFieldName('sort_order');
+                if (emojiWithoutCategory.hasOwnProperty(sortOrderField)) {
+                    delete emojiWithoutCategory[sortOrderField];
+                }
+            }
+            
             // Create the grouped structure showing just this emoji's category
             const groupedStructure = {
                 [category]: [emojiWithoutCategory]
@@ -1494,7 +1502,18 @@ class EmojiDataPasta {
         }
         
         const variantData = this.getCurrentVariantData(currentEmoji);
-        const sampleOutput = this.createFilteredEmoji(variantData);
+        let sampleOutput = this.createFilteredEmoji(variantData);
+        
+        // Apply Order Emojis transform for preview purposes (remove sort_order field)
+        if (this.dataTransforms.orderEmojis && this.selectedFields.has('sort_order')) {
+            const sortOrderField = this.getOutputFieldName('sort_order');
+            if (sampleOutput && sampleOutput.hasOwnProperty(sortOrderField)) {
+                // Create a copy and remove the sort_order field for preview
+                sampleOutput = { ...sampleOutput };
+                delete sampleOutput[sortOrderField];
+            }
+        }
+        
         const jsonString = JSON.stringify(sampleOutput, null, 2);
         const highlightedJson = this.highlightJson(jsonString);
         
@@ -5063,16 +5082,27 @@ class EmojiDataPasta {
         
         const filtered = this.createFilteredEmoji(emoji);
         
-        // Before - show original structure
+        // For preview purposes, we need to ensure both name and short_names are visible
+        // even if the user hasn't selected them, so let's get them from the original emoji
+        const nameValue = filtered && filtered[nameFieldName] ? filtered[nameFieldName] : emoji.name;
+        const shortNamesValue = filtered && filtered[shortNamesFieldName] ? filtered[shortNamesFieldName] : emoji.short_names;
+        
+        // Before - show original structure (always include both fields for the preview)
         const before = {
-            [nameFieldName]: filtered[nameFieldName],
-            [shortNamesFieldName]: filtered[shortNamesFieldName]
+            [nameFieldName]: nameValue,
+            [shortNamesFieldName]: shortNamesValue
         };
         
         // After - show transformed structure
         let after = {};
-        if (applyTransform && filtered[nameFieldName] && filtered[shortNamesFieldName]) {
-            const transformedEmoji = this.applyDataTransforms(filtered, emoji);
+        if (applyTransform && nameValue && shortNamesValue) {
+            // Create a temporary emoji object with both fields for the transform
+            const tempEmoji = {
+                ...filtered,
+                [nameFieldName]: nameValue,
+                [shortNamesFieldName]: shortNamesValue
+            };
+            const transformedEmoji = this.applyDataTransforms(tempEmoji, emoji);
             after[shortNamesFieldName] = transformedEmoji[shortNamesFieldName];
         } else {
             after = { ...before };
