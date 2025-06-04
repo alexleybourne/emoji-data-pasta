@@ -1516,6 +1516,13 @@ input[type="text"] {
     .emoji-table td {
         padding: 0.4rem;
     }
+    
+    .emoji-cell {
+        max-width: 120px;
+        max-height: 60px;
+        font-size: 12px;
+        padding: 6px;
+    }
 
     /* Mobile layout for combined fields and JSON */
     .combined-fields-json {
@@ -4245,4 +4252,65 @@ select:focus {
 
 .field-rename-actions .btn {
     min-width: 80px;
+}
+
+/* Emoji browser scrollable cells */
+.emoji-cell {
+    max-width: 200px;
+    max-height: 80px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    padding: 8px;
+    line-height: 1.4;
+}
+
+.emoji-cell-array {
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.emoji-cell-object {
+    font-family: monospace;
+    font-size: 0.85em;
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.emoji-cell::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.emoji-cell::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 3px;
+}
+
+.emoji-cell::-webkit-scrollbar-thumb {
+    background: var(--text-tertiary);
+    border-radius: 3px;
+}
+
+.emoji-cell::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* Search highlighting */
+.search-highlight {
+    background-color: var(--warning);
+    color: var(--bg-primary);
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+:root.light .search-highlight {
+    background-color: var(--warning);
+    color: #333;
+}
+
+:root.dark .search-highlight {
+    background-color: var(--warning);
+    color: #1a1a1a;
 }

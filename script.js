@@ -15,7 +15,8 @@ class EmojiDataPasta {
         this.originalCategories = new Map();
         this.selectedCategories = new Set();
         this.customSearchTerms = new Map();
-        this.fieldRenames = new Map(); // Maps original field names to renamed field names
+        this.fieldRenames = new Map(); // Store original->renamed field mappings
+        this.currentSearchQuery = ''; // Store current search query for highlighting
         
         // Initialize presets
         this.presets = this.getFieldPresets();
@@ -1381,8 +1382,9 @@ class EmojiDataPasta {
         // Initialize with available emojis (excluding removed ones)
         this.filteredEmojis = this.originalData.filter((emoji, index) => !this.removedEmojis.has(index));
         
-        // Clear search input
+        // Clear search input and query
         document.getElementById('emojiSearch').value = '';
+        this.currentSearchQuery = '';
         
         // Prepare filtered data for all emojis
         this.prepareFilteredEmojiData();
@@ -1444,6 +1446,9 @@ class EmojiDataPasta {
 
     searchEmojis(query) {
         const availableEmojis = this.originalData.filter((emoji, index) => !this.removedEmojis.has(index));
+        
+        // Store the current search query for highlighting
+        this.currentSearchQuery = query.trim();
         
         if (!query.trim()) {
             this.filteredEmojis = [...availableEmojis];
@@ -1561,32 +1566,28 @@ class EmojiDataPasta {
                 const value = filteredEmoji[outputFieldName];
                 
                 if (value === undefined || value === null) {
-                    return '<td style="color: var(--text-tertiary); font-style: italic;">—</td>';
+                    return '<td class="emoji-cell" style="color: var(--text-tertiary); font-style: italic;">—</td>';
                 }
                 
                 if (Array.isArray(value)) {
                     if (value.length === 0) {
-                        return '<td style="color: var(--text-tertiary); font-style: italic;">[]</td>';
+                        return '<td class="emoji-cell" style="color: var(--text-tertiary); font-style: italic;">[]</td>';
                     }
-                    const displayValue = value.length > 3 ? 
-                        `[${value.slice(0, 3).join(', ')}... +${value.length - 3}]` :
-                        `[${value.join(', ')}]`;
-                    return `<td title="${value.join(', ')}">${displayValue}</td>`;
+                    // Show all array items in a scrollable cell
+                    const arrayDisplay = value.map(item => this.highlightSearchMatch(item, this.currentSearchQuery)).join(', ');
+                    return `<td class="emoji-cell emoji-cell-array">[${arrayDisplay}]</td>`;
                 }
                 
                 if (typeof value === 'object') {
-                    const keys = Object.keys(value);
-                    const displayValue = keys.length > 2 ? 
-                        `{${keys.slice(0, 2).join(', ')}... +${keys.length - 2}}` :
-                        `{${keys.join(', ')}}`;
-                    return `<td title="${JSON.stringify(value)}">${displayValue}</td>`;
+                    // Show full object in scrollable cell
+                    const jsonString = JSON.stringify(value, null, 1);
+                    const highlightedJson = this.highlightSearchMatch(jsonString, this.currentSearchQuery);
+                    return `<td class="emoji-cell emoji-cell-object">${highlightedJson}</td>`;
                 }
                 
-                if (typeof value === 'string' && value.length > 30) {
-                    return `<td title="${value}">${value.substring(0, 30)}...</td>`;
-                }
-                
-                return `<td>${value}</td>`;
+                // For strings, show full content with highlighting
+                const highlightedValue = this.highlightSearchMatch(value, this.currentSearchQuery);
+                return `<td class="emoji-cell">${highlightedValue}</td>`;
             });
             
             return `
@@ -4632,6 +4633,13 @@ class EmojiDataPasta {
     getOutputFieldName(originalFieldName) {
         // Return the renamed field name if renaming is enabled and a rename exists, otherwise return original
         return (this.settings.applyFieldRenames && this.fieldRenames.get(originalFieldName)) || originalFieldName;
+    }
+
+    highlightSearchMatch(text, searchQuery) {
+        if (!searchQuery || !text) return text;
+        
+        const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        return text.toString().replace(regex, '<mark class="search-highlight">$1</mark>');
     }
 }
 
