@@ -1160,6 +1160,7 @@ class EmojiDataPasta {
         this.renderOriginalStructure();
         this.updateActiveTransformPreviews();
         this.renderOutputPreview();
+        this.renderSearchTermsManager();
         this.showMessage(`Selected: ${this.originalData[emojiIndex].name}`, 'success');
         this.saveState();
     }
@@ -1176,6 +1177,7 @@ class EmojiDataPasta {
         this.renderOriginalStructure();
         this.updateActiveTransformPreviews();
         this.renderOutputPreview();
+        this.renderSearchTermsManager();
         this.saveState();
     }
 
@@ -1191,6 +1193,7 @@ class EmojiDataPasta {
         this.renderOriginalStructure();
         this.updateActiveTransformPreviews();
         this.renderOutputPreview();
+        this.renderSearchTermsManager();
         this.saveState();
     }
 
@@ -1203,6 +1206,7 @@ class EmojiDataPasta {
         this.renderOriginalStructure();
         this.updateActiveTransformPreviews();
         this.renderOutputPreview();
+        this.renderSearchTermsManager();
         this.saveState();
     }
 
@@ -3799,10 +3803,65 @@ class EmojiDataPasta {
             }
         }
 
+        // Get existing terms for this emoji
+        const originalTerms = emoji.short_names || [];
+        const customTerms = this.customSearchTerms.get(emojiIndex) || [];
+        
+        // Build current terms display
+        let currentTermsHtml = '';
+        if (originalTerms.length > 0 || customTerms.length > 0) {
+            currentTermsHtml = `
+                <div class="current-terms-section">
+                    <h4>Current Search Terms:</h4>
+                    <div class="current-terms-display">
+                        ${originalTerms.length > 0 ? `
+                            <div class="terms-group">
+                                <span class="terms-group-label">Original (${originalTerms.length}):</span>
+                                <div class="terms-list">
+                                    ${originalTerms.map(term => `<span class="term-tag original">${term}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${customTerms.length > 0 ? `
+                            <div class="terms-group">
+                                <span class="terms-group-label">Custom (${customTerms.length}):</span>
+                                <div class="terms-list">
+                                    ${customTerms.map(term => `<span class="term-tag custom">${term}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${originalTerms.length === 0 && customTerms.length === 0 ? 
+                            '<div class="no-terms">No search terms yet</div>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
         // Update modal content
         document.getElementById('searchTermEmojiInfo').innerHTML = `
             <div class="search-term-emoji-icon">${emojiChar}</div>
             <div class="search-term-emoji-name">${emoji.name || 'Unknown Emoji'}</div>
+        `;
+        
+        // Update the modal body to include current terms
+        const modalBody = document.querySelector('#searchTermModal .search-term-body');
+        modalBody.innerHTML = `
+            <div class="search-term-emoji-info" id="searchTermEmojiInfo">
+                <div class="search-term-emoji-icon">${emojiChar}</div>
+                <div class="search-term-emoji-name">${emoji.name || 'Unknown Emoji'}</div>
+            </div>
+            
+            ${currentTermsHtml}
+            
+            <div class="search-term-input-group">
+                <label for="searchTermInput">Add new search terms:</label>
+                <input type="text" id="searchTermInput" placeholder="Enter terms separated by spaces or commas (e.g., happy smile, joy celebration)" maxlength="200">
+                <small class="input-help">💡 Tip: You can add multiple terms at once by separating them with spaces or commas</small>
+            </div>
+            <div class="search-term-actions">
+                <button class="btn btn-secondary" onclick="emojiPasta.hideSearchTermModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="emojiPasta.confirmAddSearchTerm()">Add Terms</button>
+            </div>
         `;
         
         // Store the emoji index for later use
@@ -3834,10 +3893,10 @@ class EmojiDataPasta {
 
     confirmAddSearchTerm() {
         const input = document.getElementById('searchTermInput');
-        const term = input.value.trim().toLowerCase();
+        const inputValue = input.value.trim();
         
-        if (!term) {
-            this.showMessage('Please enter a search term', 'warning');
+        if (!inputValue) {
+            this.showMessage('Please enter one or more search terms', 'warning');
             input.focus();
             return;
         }
@@ -3845,27 +3904,67 @@ class EmojiDataPasta {
         const emojiIndex = this.currentModalEmojiIndex;
         const emoji = this.originalData[emojiIndex];
         
-        // Get existing custom terms for this emoji
-        const currentTerms = this.customSearchTerms.get(emojiIndex) || [];
+        // Parse multiple terms from input (split by comma and/or spaces)
+        const newTerms = inputValue
+            .split(/[,\s]+/) // Split by commas and/or spaces
+            .map(term => term.trim().toLowerCase())
+            .filter(term => term.length > 0); // Remove empty terms
         
-        // Check if term already exists
-        const existingTerms = [...(emoji.short_names || []), ...currentTerms];
-        
-        if (existingTerms.includes(term)) {
-            this.showMessage(`"${term}" already exists for this emoji`, 'warning');
+        if (newTerms.length === 0) {
+            this.showMessage('Please enter valid search terms', 'warning');
             input.focus();
             return;
         }
 
-        // Add the new term
-        currentTerms.push(term);
-        this.customSearchTerms.set(emojiIndex, currentTerms);
+        // Get existing terms for this emoji
+        const currentCustomTerms = this.customSearchTerms.get(emojiIndex) || [];
+        const existingTerms = [...(emoji.short_names || []), ...currentCustomTerms];
+        
+        // Check for duplicates and collect valid new terms
+        const validNewTerms = [];
+        const duplicateTerms = [];
+        
+        newTerms.forEach(term => {
+            if (existingTerms.includes(term)) {
+                duplicateTerms.push(term);
+            } else {
+                validNewTerms.push(term);
+            }
+        });
+
+        // Show feedback about duplicates
+        if (duplicateTerms.length > 0 && validNewTerms.length === 0) {
+            this.showMessage(`All terms already exist: ${duplicateTerms.join(', ')}`, 'warning');
+            input.focus();
+            return;
+        }
+        
+        if (duplicateTerms.length > 0) {
+            this.showMessage(`Skipped duplicate terms: ${duplicateTerms.join(', ')}`, 'info');
+        }
+
+        if (validNewTerms.length === 0) {
+            this.showMessage('No new terms to add', 'warning');
+            input.focus();
+            return;
+        }
+
+        // Add the new terms
+        const updatedCustomTerms = [...currentCustomTerms, ...validNewTerms];
+        this.customSearchTerms.set(emojiIndex, updatedCustomTerms);
         
         this.hideSearchTermModal();
         this.renderSearchTermsManager();
         this.renderOutputPreview();
         this.saveState();
-        this.showMessage(`Added custom search term: "${term}" to ${emoji.name}`, 'success');
+        
+        // Show success message
+        const termCount = validNewTerms.length;
+        const termText = termCount === 1 ? 'term' : 'terms';
+        this.showMessage(
+            `Added ${termCount} custom search ${termText} to ${emoji.name}: ${validNewTerms.join(', ')}`, 
+            'success'
+        );
     }
 
     clearCustomTermsForCurrentEmoji() {
@@ -4009,14 +4108,30 @@ class EmojiDataPasta {
         }
 
         // Build HTML for all emojis with custom terms
-        const sortedIndices = Array.from(this.customSearchTerms.keys()).sort((a, b) => a - b);
+        // Always include current emoji at the top, even if it has no custom terms
+        const allIndicesWithTerms = Array.from(this.customSearchTerms.keys());
+        const sortedIndices = [];
+        
+        // Add current emoji first if it exists
+        if (this.currentEmojiIndex >= 0 && this.currentEmojiIndex < this.originalData.length) {
+            sortedIndices.push(this.currentEmojiIndex);
+            // Remove current emoji from the rest of the list to avoid duplicates
+            const remainingIndices = allIndicesWithTerms.filter(idx => idx !== this.currentEmojiIndex);
+            // Add remaining emojis sorted numerically
+            sortedIndices.push(...remainingIndices.sort((a, b) => a - b));
+        } else {
+            // If no current emoji, just sort normally
+            sortedIndices.push(...allIndicesWithTerms.sort((a, b) => a - b));
+        }
         
         const emojisHtml = sortedIndices.map(emojiIndex => {
             const emoji = this.originalData[emojiIndex];
             const customTerms = this.customSearchTerms.get(emojiIndex) || [];
             const originalTerms = emoji.short_names || [];
             
-            if (customTerms.length === 0) return ''; // Skip if no custom terms
+            // Always show current emoji, even if it has no custom terms
+            const isCurrentEmoji = emojiIndex === this.currentEmojiIndex;
+            if (!isCurrentEmoji && customTerms.length === 0) return ''; // Skip non-current emojis with no custom terms
 
         // Try to render actual emoji
         let emojiChar = '📝';
@@ -4029,7 +4144,6 @@ class EmojiDataPasta {
             }
         }
 
-            const isCurrentEmoji = emojiIndex === this.currentEmojiIndex;
             const isRemovedEmoji = this.removedEmojis.has(emojiIndex);
             
             return `

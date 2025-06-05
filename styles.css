@@ -4754,3 +4754,79 @@ select:focus {
     font-size: 0.8rem;
     text-align: center;
 }
+
+.search-term-actions .btn {
+    margin: 0 0.25rem;
+}
+
+.current-terms-section {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    border: 1px solid var(--border-primary);
+}
+
+.current-terms-section h4 {
+    margin: 0 0 0.75rem 0;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.current-terms-display .terms-group {
+    margin-bottom: 0.75rem;
+}
+
+.current-terms-display .terms-group:last-child {
+    margin-bottom: 0;
+}
+
+.current-terms-display .terms-group-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.current-terms-display .terms-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.current-terms-display .term-tag {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid;
+}
+
+.current-terms-display .term-tag.original {
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border-color: var(--border-primary);
+}
+
+.current-terms-display .term-tag.custom {
+    background: var(--accent-primary);
+    color: #ffffff;
+    border-color: var(--accent-primary);
+}
+
+.current-terms-display .no-terms {
+    color: var(--text-secondary);
+    font-style: italic;
+    font-size: 0.85rem;
+}
+
+.search-term-input-group .input-help {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.3;
+}
