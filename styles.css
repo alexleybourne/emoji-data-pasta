@@ -1700,16 +1700,15 @@ select:focus {
 }
 
 .category-card.excluded:hover {
-    border-color: var(--danger-hover);
+    background: var(--danger);
 }
 
 .category-card.custom-mapping {
-    border-left: 4px solid var(--warning);
-    background: var(--bg-elevated);
+    border-left: 3px solid var(--accent-primary);
 }
 
 .category-card.custom-mapping:hover {
-    border-left-color: var(--warning-hover);
+    border-left-color: var(--accent-hover);
 }
 
 .category-card-header {
@@ -4634,4 +4633,124 @@ select:focus {
 
 .transforms-controls {
     padding: 1rem;
+}
+
+/* Category reordering styles */
+.category-reorder-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.category-reorder-controls .preset-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.category-reorder-controls .preset-select {
+    min-width: 120px;
+    font-size: 0.875rem;
+}
+
+.category-reorder-controls .btn-small {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.reorder-hint {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.draggable-category {
+    cursor: grab;
+    transition: all 0.3s ease;
+}
+
+.draggable-category:active {
+    cursor: grabbing;
+}
+
+.draggable-category.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    z-index: 1000;
+    cursor: grabbing;
+}
+
+.draggable-category.drag-over {
+    border-color: var(--accent-primary);
+    background: var(--accent-primary)20;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 112, 243, 0.3);
+}
+
+.drag-handle {
+    color: var(--text-tertiary);
+    margin-right: 0.5rem;
+    cursor: grab;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.category-card:hover .drag-handle {
+    opacity: 1;
+}
+
+.draggable-category:active .drag-handle {
+    cursor: grabbing;
+}
+
+.category-reorder-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    color: var(--text-secondary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.75rem;
+    margin: 0 0.125rem;
+    min-width: 24px;
+    text-align: center;
+}
+
+.category-reorder-btn:hover {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.category-reorder-btn:active {
+    transform: translateY(0);
+}
+
+.category-reorder-spacer {
+    width: 24px;
+    margin: 0 0.125rem;
+    display: inline-block;
+}
+
+.category-selection-info {
+    background: var(--info-bg);
+    color: var(--info-text);
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    border: 1px solid var(--info-border);
+    font-size: 0.8rem;
+    text-align: center;
 }

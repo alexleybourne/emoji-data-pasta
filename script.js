@@ -14,6 +14,7 @@ class EmojiDataPasta {
         this.excludedCategories = new Set();
         this.originalCategories = new Map();
         this.selectedCategories = new Set();
+        this.categoryOrder = []; // Custom order for categories (when using Group by Category)
         this.customSearchTerms = new Map();
         this.fieldRenames = new Map(); // Store original->renamed field mappings
         this.currentSearchQuery = ''; // Store current search query for highlighting
@@ -55,6 +56,32 @@ class EmojiDataPasta {
         setTimeout(() => {
             this.forceDataTransformCheckboxSync();
         }, 50);
+        
+        // Category order presets
+        this.categoryOrderPresets = {
+            'default': {
+                name: 'Default',
+                description: 'Natural alphabetical order',
+                order: [] // Empty means use natural order
+            },
+            'keyboard': {
+                name: 'Keyboard',
+                description: 'Common emoji keyboard layout order',
+                order: [
+                    'Smileys & Emotion',
+                    'People & Body', 
+                    'Food & Drink',
+                    'Animals & Nature',
+                    'Activities',
+                    'Travel & Places',
+                    'Objects',
+                    'Symbols',
+                    'Flags',
+                    'Component'
+                ]
+            }
+        };
+        this.currentCategoryOrderPreset = 'default';
     }
 
     getFieldDescriptions() {
@@ -840,6 +867,21 @@ class EmojiDataPasta {
             }
             if (state.excludedCategories) {
                 this.excludedCategories = new Set(state.excludedCategories);
+            }
+            
+            // Restore category order
+            if (state.categoryOrder) {
+                this.categoryOrder = state.categoryOrder;
+            }
+            
+            // Restore current category order preset
+            if (state.currentCategoryOrderPreset) {
+                this.currentCategoryOrderPreset = state.currentCategoryOrderPreset;
+            }
+            
+            // Restore custom search terms
+            if (state.customSearchTerms) {
+                this.customSearchTerms = new Map(state.customSearchTerms);
             }
             
             this.showMessage(`Loaded data with file settings: ${this.selectedFields.size} fields selected`, 'info');
@@ -2588,6 +2630,8 @@ class EmojiDataPasta {
                 removedEmojis: Array.from(this.removedEmojis),
                 categoryMappings: Array.from(this.categoryMappings.entries()),
                 excludedCategories: Array.from(this.excludedCategories),
+                categoryOrder: this.categoryOrder, // Save custom category order
+                currentCategoryOrderPreset: this.currentCategoryOrderPreset, // Save current preset
                 customSearchTerms: Array.from(this.customSearchTerms.entries()),
                 fieldRenames: Array.from(this.fieldRenames.entries()),
                 dataTransforms: this.dataTransforms,
@@ -2646,6 +2690,8 @@ class EmojiDataPasta {
         this.excludedCategories = new Set();
         this.originalCategories = new Map();
         this.selectedCategories = new Set();
+        this.categoryOrder = []; // Reset category order
+        this.currentCategoryOrderPreset = 'default'; // Reset category order preset
         this.customSearchTerms = new Map();
         this.currentPreset = '';
         this.customPreset = [];
@@ -3217,6 +3263,10 @@ class EmojiDataPasta {
             });
         }
 
+        // Sort categories according to custom order if it exists
+        const categoryArray = Array.from(allCategories.entries());
+        const orderedCategories = this.sortCategoriesByCustomOrder(categoryArray);
+
         // Update counter
         const totalOriginal = this.originalCategories.size;
         const totalMappings = this.categoryMappings.size;
@@ -3237,26 +3287,60 @@ class EmojiDataPasta {
             </div>`;
         }
         
+        // Category reorder controls
+        if (orderedCategories.length > 1) {
+            const presetOptions = Object.entries(this.categoryOrderPresets)
+                .map(([key, preset]) => 
+                    `<option value="${key}" ${this.currentCategoryOrderPreset === key ? 'selected' : ''}>${preset.name}</option>`
+                ).join('');
+
+            html += `<div class="category-reorder-controls">
+                <div class="preset-controls">
+                    <label class="preset-label">Order Preset:</label>
+                    <select id="categoryOrderPreset" class="preset-select" onchange="app.applyCategoryOrderPreset(this.value)">
+                        ${presetOptions}
+                    </select>
+                    <button class="btn btn-secondary btn-small" onclick="app.resetCategoryOrderToPreset()" title="Reset to preset order">Reset</button>
+                </div>
+                <span class="reorder-hint">💡 Drag categories to reorder, or use ↑/↓ arrows</span>
+            </div>`;
+        }
+        
         // Category grid
-        if (allCategories.size > 0) {
-            html += '<div class="category-grid">';
+        if (orderedCategories.length > 0) {
+            html += '<div class="category-grid" id="categoryGrid">';
             
-            for (const [categoryKey, categoryData] of allCategories) {
+            orderedCategories.forEach(([categoryKey, categoryData], index) => {
                 const isSelected = this.selectedCategories.has(categoryKey);
                 const cssClasses = [
                     'category-card',
+                    'draggable-category',
                     isSelected ? 'selected' : '',
                     categoryData.isExcluded ? 'excluded' : '',
                     categoryData.type === 'mapping' ? 'custom-mapping' : ''
                 ].filter(Boolean).join(' ');
                 
-                html += `<div class="${cssClasses}" data-category="${categoryKey}" onclick="app.toggleCategorySelection('${categoryKey}')">
+                html += `<div class="${cssClasses}" 
+                    data-category="${categoryKey}" 
+                    data-index="${index}"
+                    draggable="true"
+                    onclick="app.toggleCategorySelection('${categoryKey}')"
+                    ondragstart="app.handleCategoryDragStart(event)"
+                    ondragover="app.handleCategoryDragOver(event)"
+                    ondrop="app.handleCategoryDrop(event)"
+                    ondragend="app.handleCategoryDragEnd(event)">
+                    
                     <div class="category-card-header">
-                        <div class="category-name">${categoryData.name}</div>
+                        <div class="category-name">
+                            <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            ${categoryData.name}
+                        </div>
                         <div class="category-emoji-count">${categoryData.count}</div>
                     </div>
                     
                     <div class="category-card-actions">
+                        ${index > 0 ? `<button class="category-reorder-btn up" onclick="event.stopPropagation(); app.moveCategoryUp('${categoryKey}')" title="Move Up">↑</button>` : '<span class="category-reorder-spacer"></span>'}
+                        ${index < orderedCategories.length - 1 ? `<button class="category-reorder-btn down" onclick="event.stopPropagation(); app.moveCategoryDown('${categoryKey}')" title="Move Down">↓</button>` : '<span class="category-reorder-spacer"></span>'}
                         <button class="category-action-btn view-emojis" onclick="event.stopPropagation(); app.showCategoryEmojis('${categoryKey}')" title="View Emojis">👁️</button>
                         <button class="category-action-btn rename" onclick="event.stopPropagation(); app.renameCategoryInline('${categoryKey}')" title="Rename">✏️</button>
                         <button class="category-action-btn delete" onclick="event.stopPropagation(); app.deleteSingleCategory('${categoryKey}')" title="Delete">🗑️</button>
@@ -3266,7 +3350,7 @@ class EmojiDataPasta {
                         `<div class="category-original-sources">Merged from: ${categoryData.originalSources.join(', ')}</div>` : 
                         ''}
                 </div>`;
-            }
+            });
             
             html += '</div>';
         } else {
@@ -3275,6 +3359,243 @@ class EmojiDataPasta {
 
         categoryManager.innerHTML = html;
         this.updateCategoryActionButtons();
+    }
+
+    sortCategoriesByCustomOrder(categoryArray) {
+        // If no custom order is set, return categories in their natural order
+        if (this.categoryOrder.length === 0) {
+            return categoryArray;
+        }
+        
+        // Create a map for quick lookup of custom order positions
+        const orderMap = new Map();
+        this.categoryOrder.forEach((categoryName, index) => {
+            orderMap.set(categoryName, index);
+        });
+        
+        // Sort categories according to custom order, with unordered categories at the end
+        return categoryArray.sort(([nameA], [nameB]) => {
+            const posA = orderMap.has(nameA) ? orderMap.get(nameA) : Number.MAX_SAFE_INTEGER;
+            const posB = orderMap.has(nameB) ? orderMap.get(nameB) : Number.MAX_SAFE_INTEGER;
+            
+            if (posA === posB) {
+                // If both have no custom order, sort alphabetically
+                return nameA.localeCompare(nameB);
+            }
+            return posA - posB;
+        });
+    }
+
+    moveCategoryUp(categoryName) {
+        const allCategories = this.getAllCategories();
+        const currentOrder = this.categoryOrder.length > 0 ? [...this.categoryOrder] : allCategories.map(([name]) => name);
+        
+        const currentIndex = currentOrder.indexOf(categoryName);
+        if (currentIndex > 0) {
+            // Swap with the previous category
+            [currentOrder[currentIndex - 1], currentOrder[currentIndex]] = 
+            [currentOrder[currentIndex], currentOrder[currentIndex - 1]];
+            
+            this.categoryOrder = currentOrder;
+            this.renderCategoryManager();
+            this.renderOutputPreview();
+            this.saveState();
+            this.showMessage(`Moved "${categoryName}" up`, 'success');
+        }
+    }
+
+    moveCategoryDown(categoryName) {
+        const allCategories = this.getAllCategories();
+        const currentOrder = this.categoryOrder.length > 0 ? [...this.categoryOrder] : allCategories.map(([name]) => name);
+        
+        const currentIndex = currentOrder.indexOf(categoryName);
+        if (currentIndex < currentOrder.length - 1) {
+            // Swap with the next category
+            [currentOrder[currentIndex], currentOrder[currentIndex + 1]] = 
+            [currentOrder[currentIndex + 1], currentOrder[currentIndex]];
+            
+            this.categoryOrder = currentOrder;
+            this.renderCategoryManager();
+            this.renderOutputPreview();
+            this.saveState();
+            this.showMessage(`Moved "${categoryName}" down`, 'success');
+        }
+    }
+
+    resetCategoryOrder() {
+        // Reset to the default preset
+        this.applyCategoryOrderPreset('default');
+    }
+
+    getAllCategories() {
+        const allCategories = new Map();
+        
+        // Add original categories that aren't mapped to anything
+        const mappedOriginalCategories = new Set();
+        for (const originalCategories of this.categoryMappings.values()) {
+            originalCategories.forEach(cat => mappedOriginalCategories.add(cat));
+        }
+        
+        for (const [category, count] of this.originalCategories) {
+            if (!mappedOriginalCategories.has(category)) {
+                allCategories.set(category, {
+                    name: category,
+                    count: count,
+                    type: 'original',
+                    isExcluded: this.excludedCategories.has(category),
+                    originalSources: [category]
+                });
+            }
+        }
+        
+        // Add custom mappings
+        for (const [mappingName, originalCategories] of this.categoryMappings) {
+            const totalCount = originalCategories.reduce((sum, cat) => sum + (this.originalCategories.get(cat) || 0), 0);
+            allCategories.set(mappingName, {
+                name: mappingName,
+                count: totalCount,
+                type: 'mapping',
+                isExcluded: this.excludedCategories.has(mappingName),
+                originalSources: originalCategories
+            });
+        }
+        
+        return Array.from(allCategories.entries());
+    }
+
+    // Drag and drop event handlers
+    handleCategoryDragStart(event) {
+        const categoryCard = event.target.closest('.category-card');
+        const categoryName = categoryCard.dataset.category;
+        const categoryIndex = parseInt(categoryCard.dataset.index);
+        
+        event.dataTransfer.setData('text/plain', JSON.stringify({
+            categoryName: categoryName,
+            sourceIndex: categoryIndex
+        }));
+        
+        categoryCard.classList.add('dragging');
+        event.dataTransfer.effectAllowed = 'move';
+    }
+
+    handleCategoryDragOver(event) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        
+        const categoryCard = event.target.closest('.category-card');
+        if (categoryCard && !categoryCard.classList.contains('dragging')) {
+            categoryCard.classList.add('drag-over');
+        }
+    }
+
+    handleCategoryDrop(event) {
+        event.preventDefault();
+        
+        const targetCard = event.target.closest('.category-card');
+        if (!targetCard) return;
+        
+        const targetIndex = parseInt(targetCard.dataset.index);
+        const dragData = JSON.parse(event.dataTransfer.getData('text/plain'));
+        const sourceIndex = dragData.sourceIndex;
+        
+        if (sourceIndex !== targetIndex) {
+            this.reorderCategoryByDrag(sourceIndex, targetIndex);
+        }
+        
+        // Clean up drag styling
+        document.querySelectorAll('.category-card').forEach(card => {
+            card.classList.remove('dragging', 'drag-over');
+        });
+    }
+
+    handleCategoryDragEnd(event) {
+        // Clean up drag styling
+        document.querySelectorAll('.category-card').forEach(card => {
+            card.classList.remove('dragging', 'drag-over');
+        });
+    }
+
+    reorderCategoryByDrag(fromIndex, toIndex) {
+        const allCategories = this.getAllCategories();
+        const currentOrder = this.categoryOrder.length > 0 ? [...this.categoryOrder] : allCategories.map(([name]) => name);
+        
+        // Move the category from fromIndex to toIndex
+        const movedCategory = currentOrder.splice(fromIndex, 1)[0];
+        currentOrder.splice(toIndex, 0, movedCategory);
+        
+        this.categoryOrder = currentOrder;
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Reordered "${movedCategory}"`, 'success');
+    }
+
+    applyCategoryOrderPreset(presetKey) {
+        if (!this.categoryOrderPresets[presetKey]) {
+            this.showMessage('Invalid preset selected', 'warning');
+            return;
+        }
+
+        const preset = this.categoryOrderPresets[presetKey];
+        this.currentCategoryOrderPreset = presetKey;
+
+        if (presetKey === 'default') {
+            // Reset to default order (empty array)
+            this.categoryOrder = [];
+        } else {
+            // Apply the preset order, considering both original and custom categories
+            const allCategories = this.getAllCategories();
+            
+            // Create a map to track category positions based on preset order
+            const categoryPositions = new Map();
+            
+            allCategories.forEach(([categoryName, categoryData]) => {
+                let earliestPosition = Number.MAX_SAFE_INTEGER;
+                
+                if (categoryData.type === 'original') {
+                    // For original categories, find their position in preset
+                    const presetPosition = preset.order.indexOf(categoryName);
+                    earliestPosition = presetPosition >= 0 ? presetPosition : Number.MAX_SAFE_INTEGER;
+                } else if (categoryData.type === 'mapping') {
+                    // For custom mappings, find the earliest position of their source categories
+                    categoryData.originalSources.forEach(sourceCategory => {
+                        const presetPosition = preset.order.indexOf(sourceCategory);
+                        if (presetPosition >= 0 && presetPosition < earliestPosition) {
+                            earliestPosition = presetPosition;
+                        }
+                    });
+                }
+                
+                categoryPositions.set(categoryName, earliestPosition);
+            });
+            
+            // Sort categories by their earliest preset position, then alphabetically
+            const sortedCategories = allCategories
+                .map(([name]) => name)
+                .sort((a, b) => {
+                    const posA = categoryPositions.get(a);
+                    const posB = categoryPositions.get(b);
+                    
+                    if (posA !== posB) {
+                        return posA - posB;
+                    }
+                    
+                    // If positions are equal (both not in preset), sort alphabetically
+                    return a.localeCompare(b);
+                });
+            
+            this.categoryOrder = sortedCategories;
+        }
+
+        this.renderCategoryManager();
+        this.renderOutputPreview();
+        this.saveState();
+        this.showMessage(`Applied "${preset.name}" category order`, 'success');
+    }
+
+    resetCategoryOrderToPreset() {
+        // Re-apply the current preset to reset any manual changes
+        this.applyCategoryOrderPreset(this.currentCategoryOrderPreset);
     }
 
     mergeSelectedCategories() {
@@ -5375,6 +5696,29 @@ class EmojiDataPasta {
                 groupedByCategory[category].push(emojiWithoutCategory);
             }
         });
+        
+        // If custom category order is defined, reorder the output object to respect it
+        if (this.categoryOrder.length > 0) {
+            const orderedGroupedByCategory = {};
+            
+            // First, add categories in the custom order
+            this.categoryOrder.forEach(categoryName => {
+                if (groupedByCategory[categoryName]) {
+                    orderedGroupedByCategory[categoryName] = groupedByCategory[categoryName];
+                }
+            });
+            
+            // Then add any categories not in the custom order (alphabetically)
+            const remainingCategories = Object.keys(groupedByCategory)
+                .filter(category => !this.categoryOrder.includes(category))
+                .sort();
+            
+            remainingCategories.forEach(categoryName => {
+                orderedGroupedByCategory[categoryName] = groupedByCategory[categoryName];
+            });
+            
+            return orderedGroupedByCategory;
+        }
         
         return groupedByCategory;
     }
